@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "slug": "workout",
+      "name": "Workout Tracker",
+      "description": "Log lifts, track progress.",
+      "icon": "🏋️",
+      "status": "coming-soon",
+      "category": "fitness"
+    }
+  ]
+}
