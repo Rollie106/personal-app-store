@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Workout Tracker</title>
+
+  <link rel="stylesheet" href="/apps/workout/style.css">
+
+  <!-- PWA manifest scoped to /apps/workout/ so this app installs on its own -->
+  <link rel="manifest" href="/apps/workout/manifest.json">
+
+  <!-- Apple PWA meta tags for Add to Home Screen -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Workout">
+  <link rel="apple-touch-icon" href="/apps/workout/icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/apps/workout/icon.svg">
+</head>
+<body>
+  <header class="app-header">
+    <a class="back-link" href="/" aria-label="Back to store">‹ Apps</a>
+    <h1>Workout Tracker</h1>
+  </header>
+
+  <!-- Top segmented control: Log / History / Progress -->
+  <nav class="segmented" role="tablist" aria-label="Views">
+    <button type="button" class="seg seg--active" role="tab" data-view="log"      aria-selected="true">Log</button>
+    <button type="button" class="seg"             role="tab" data-view="history"  aria-selected="false">History</button>
+    <button type="button" class="seg"             role="tab" data-view="progress" aria-selected="false">Progress</button>
+  </nav>
+
+  <main>
+    <!-- LOG VIEW -->
+    <section id="view-log" class="view" aria-label="Log a workout">
+      <label class="field">
+        <span class="field__label">Exercise</span>
+        <select id="exercise-select"></select>
+      </label>
+
+      <button type="button" id="repeat-btn" class="btn btn--secondary">↻ Repeat last workout</button>
+
+      <div class="sets">
+        <div class="sets__header">
+          <span>Sets</span>
+        </div>
+        <ul id="sets-list" class="sets__list"></ul>
+        <button type="button" id="add-set-btn" class="btn btn--ghost">+ Add set</button>
+      </div>
+
+      <label class="field">
+        <span class="field__label">Notes (optional)</span>
+        <input id="notes-input" type="text" placeholder="How did it feel?">
+      </label>
+
+      <button type="button" id="save-btn" class="btn btn--primary">Save workout</button>
+    </section>
+
+    <!-- HISTORY VIEW -->
+    <section id="view-history" class="view" aria-label="Workout history" hidden>
+      <ul id="history-list" class="history"></ul>
+    </section>
+
+    <!-- PROGRESS VIEW -->
+    <section id="view-progress" class="view" aria-label="Progress chart" hidden>
+      <label class="field">
+        <span class="field__label">Exercise</span>
+        <select id="progress-select"></select>
+      </label>
+      <div id="chart-container" class="chart-container"></div>
+    </section>
+  </main>
+
+  <script src="/apps/workout/app.js" defer></script>
+</body>
+</html>
