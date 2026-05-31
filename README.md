@@ -4,7 +4,7 @@ A static webpage that lists my custom-built apps and lets me install them on my 
 
 This is the **rack** — the storage shelf. Each app I build gets a card here; tapping the card opens the app; "Add to Home Screen" makes it look and feel native.
 
-Live URL: _(filled in after Vercel deploy)_
+Live URL: <https://personal-app-store-seven.vercel.app/>
 
 ---
 
