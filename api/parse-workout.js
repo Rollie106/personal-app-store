@@ -1,8 +1,9 @@
 // Vercel serverless function: transcript -> structured workout JSON.
 //
-// Reads GEMINI_API_KEY from process.env at request time. The key is set in the
-// Vercel dashboard under Project Settings -> Environment Variables. It is NEVER
-// included in any response or logged in detail.
+// Reads the Gemini key from process.env at request time. Accepts either
+// GEMINI_API_KEY (preferred, self-documenting) or RK (the user's chosen short
+// name) — set in the Vercel dashboard under Project Settings -> Environment
+// Variables. It is NEVER included in any response or logged in detail.
 //
 // Endpoint:  POST /api/parse-workout
 // Body:      { "transcript": "three sets of bench, 8 at 60, 8 at 60, 6 at 65" }
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!(process.env.GEMINI_API_KEY || process.env.RK)) {
     return res.status(500).json({
       error: 'API key not configured. Add GEMINI_API_KEY in Vercel Project Settings -> Environment Variables, then redeploy.',
     });
@@ -96,7 +97,7 @@ export default async function handler(req, res) {
 
   let gResp;
   try {
-    gResp = await fetch(`${GEMINI_URL}?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
+    gResp = await fetch(`${GEMINI_URL}?key=${encodeURIComponent((process.env.GEMINI_API_KEY || process.env.RK))}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(geminiBody),
