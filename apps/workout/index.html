@@ -34,6 +34,22 @@
   <main>
     <!-- LOG VIEW -->
     <section id="view-log" class="view" aria-label="Log a workout">
+      <!-- Voice block: tap mic, describe workout, parse to form. Hidden if browser lacks SpeechRecognition. -->
+      <div id="voice-block" class="voice" hidden>
+        <button type="button" id="mic-btn" class="btn btn--primary mic-btn">🎤 Describe workout</button>
+        <div id="transcript-box" class="transcript-box" hidden>
+          <span class="transcript-label">Transcript (edit if needed)</span>
+          <textarea id="transcript-text" class="transcript-text" rows="3" aria-label="Transcript"></textarea>
+          <div class="transcript-actions">
+            <button type="button" id="discard-btn" class="btn btn--ghost">Discard</button>
+            <button type="button" id="parse-btn"   class="btn btn--secondary">Parse →</button>
+          </div>
+        </div>
+        <div id="voice-error" class="voice-error" hidden></div>
+      </div>
+
+      <div id="voice-divider" class="divider" hidden><span>or fill manually</span></div>
+
       <label class="field">
         <span class="field__label">Exercise</span>
         <select id="exercise-select"></select>
@@ -53,6 +69,12 @@
         <span class="field__label">Notes (optional)</span>
         <input id="notes-input" type="text" placeholder="How did it feel?">
       </label>
+
+      <!-- RPE chip: shown when voice parse extracted an RPE value. Cleared by tapping ×. -->
+      <div id="rpe-row" class="rpe-row" hidden>
+        <span class="rpe-chip">RPE <span id="rpe-value">—</span></span>
+        <button type="button" id="rpe-clear" class="rpe-clear" aria-label="Clear RPE">×</button>
+      </div>
 
       <button type="button" id="save-btn" class="btn btn--primary">Save workout</button>
     </section>

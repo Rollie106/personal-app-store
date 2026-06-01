@@ -55,6 +55,20 @@ const saveBtn         = $('#save-btn');
 const historyList     = $('#history-list');
 const chartContainer  = $('#chart-container');
 const segButtons      = document.querySelectorAll('.seg');
+
+// Voice-related refs (may be absent if SpeechRecognition isn't supported)
+const voiceBlock      = $('#voice-block');
+const voiceDivider    = $('#voice-divider');
+const micBtn          = $('#mic-btn');
+const transcriptBox   = $('#transcript-box');
+const transcriptText  = $('#transcript-text');
+const discardBtn      = $('#discard-btn');
+const parseBtn        = $('#parse-btn');
+const voiceError      = $('#voice-error');
+const rpeRow          = $('#rpe-row');
+const rpeValueEl      = $('#rpe-value');
+const rpeClearBtn     = $('#rpe-clear');
+
 const views = {
   log:      $('#view-log'),
   history:  $('#view-history'),
@@ -102,6 +116,29 @@ function renderSetsList(sets) {
 
 // In-memory form sets (separate from saved workouts so the form is editable freely)
 let formSets = [{ reps: '', weight: '' }];
+
+// Optional RPE for the current form; set by voice parse, cleared on save or × tap
+let formRpe = null;
+
+function setRpe(value) {
+  formRpe = (Number.isInteger(value) && value >= 1 && value <= 10) ? value : null;
+  if (formRpe == null) {
+    if (rpeRow) rpeRow.hidden = true;
+  } else {
+    if (rpeValueEl) rpeValueEl.textContent = String(formRpe);
+    if (rpeRow)     rpeRow.hidden = false;
+  }
+}
+
+// Add an exercise option to both selects if it's not already present.
+function addExerciseIfNew(name) {
+  if (!name) return;
+  const exists = Array.from(exerciseSelect.options).some((o) => o.value === name);
+  if (exists) return;
+  const html = `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`;
+  exerciseSelect.insertAdjacentHTML('beforeend', html);
+  progressSelect.insertAdjacentHTML('beforeend', html);
+}
 
 function refreshForm() {
   renderSetsList(formSets);
@@ -185,12 +222,15 @@ saveBtn.addEventListener('click', () => {
     unit: 'kg',
     notes: notesInput.value.trim(),
   };
+  if (formRpe != null) entry.rpe = formRpe;
+
   state.workouts.unshift(entry);  // newest first
   saveState(state);
 
   // Reset form
   formSets = [{ reps: '', weight: '' }];
   notesInput.value = '';
+  setRpe(null);
   refreshForm();
 
   // Jump to History and briefly highlight the new entry
@@ -212,7 +252,9 @@ function renderHistory() {
   historyList.innerHTML = state.workouts.map((w) => `
     <li class="history-item">
       <div class="history-item__meta">
-        <span class="history-item__exercise">${escapeHTML(w.exercise)}</span>
+        <span class="history-item__exercise">
+          ${escapeHTML(w.exercise)}${Number.isInteger(w.rpe) ? `<span class="history-item__rpe">RPE ${w.rpe}</span>` : ''}
+        </span>
         <span class="history-item__date">${escapeHTML(relativeDate(w.date))}</span>
       </div>
       <div class="history-item__sets">${escapeHTML(summarizeSets(w.sets))}</div>
@@ -337,8 +379,186 @@ function escapeHTML(s) {
     .replace(/'/g, '&#39;');
 }
 
+// ---------- Voice (Web Speech API + Gemini parser) ----------
+//
+// iOS Safari exposes webkitSpeechRecognition (on-device transcription).
+// If it's missing, the mic UI stays hidden and form-only logging still works.
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recognition = null;
+let liveTranscript = '';   // accumulates final results across an utterance
+let isRecording = false;
+
+function showVoiceError(msg) {
+  if (!voiceError) return;
+  voiceError.textContent = msg;
+  voiceError.hidden = false;
+}
+function clearVoiceError() {
+  if (!voiceError) return;
+  voiceError.textContent = '';
+  voiceError.hidden = true;
+}
+
+function setRecordingUI(on) {
+  isRecording = on;
+  micBtn.classList.toggle('btn--recording', on);
+  micBtn.textContent = on ? 'Stop · listening…' : '🎤 Describe workout';
+}
+
+function startRecording() {
+  clearVoiceError();
+  liveTranscript = '';
+  transcriptText.value = '';
+  transcriptBox.hidden = false;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = navigator.language || 'en-US';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const res = event.results[i];
+      if (res.isFinal) liveTranscript += res[0].transcript + ' ';
+      else interim += res[0].transcript;
+    }
+    transcriptText.value = (liveTranscript + interim).trim();
+  };
+
+  recognition.onerror = (event) => {
+    setRecordingUI(false);
+    const code = event.error;
+    if (code === 'not-allowed' || code === 'service-not-allowed') {
+      showVoiceError('Microphone permission denied. Enable it in Settings → Safari → Microphone.');
+    } else if (code === 'no-speech') {
+      showVoiceError('Didn’t catch anything. Try again.');
+    } else {
+      showVoiceError('Speech recognition error: ' + code);
+    }
+  };
+
+  recognition.onend = () => {
+    setRecordingUI(false);
+  };
+
+  try {
+    recognition.start();
+    setRecordingUI(true);
+  } catch (err) {
+    showVoiceError('Could not start recording: ' + err.message);
+  }
+}
+
+function stopRecording() {
+  if (recognition) {
+    try { recognition.stop(); } catch (e) { /* ignore */ }
+  }
+  setRecordingUI(false);
+}
+
+if (micBtn) {
+  micBtn.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    else startRecording();
+  });
+}
+
+if (discardBtn) {
+  discardBtn.addEventListener('click', () => {
+    if (isRecording) stopRecording();
+    transcriptText.value = '';
+    liveTranscript = '';
+    transcriptBox.hidden = true;
+    clearVoiceError();
+  });
+}
+
+if (parseBtn) {
+  parseBtn.addEventListener('click', async () => {
+    if (isRecording) stopRecording();
+    const transcript = transcriptText.value.trim();
+    if (!transcript) {
+      showVoiceError('Transcript is empty.');
+      return;
+    }
+    clearVoiceError();
+    parseBtn.disabled = true;
+    parseBtn.textContent = 'Parsing…';
+    try {
+      const parsed = await parseWithGemini(transcript);
+      applyParsedToForm(parsed);
+      transcriptBox.hidden = true;
+      transcriptText.value = '';
+      liveTranscript = '';
+    } catch (err) {
+      showVoiceError(err.message || 'Could not parse workout.');
+    } finally {
+      parseBtn.disabled = false;
+      parseBtn.textContent = 'Parse →';
+    }
+  });
+}
+
+async function parseWithGemini(transcript) {
+  let res;
+  try {
+    res = await fetch('/api/parse-workout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript }),
+    });
+  } catch (e) {
+    throw new Error('Couldn’t reach the parser. Check your connection.');
+  }
+  let data;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) {
+    const detail = data?.error || `HTTP ${res.status}`;
+    throw new Error(detail);
+  }
+  if (!data || !data.exercise || !Array.isArray(data.sets)) {
+    throw new Error('Parser returned an unexpected shape.');
+  }
+  return data;
+}
+
+function applyParsedToForm(parsed) {
+  // Add new exercise to the list if needed, then select it
+  addExerciseIfNew(parsed.exercise);
+  exerciseSelect.value = parsed.exercise;
+
+  // Replace form sets with parsed sets (sanitized)
+  const cleanSets = parsed.sets
+    .map((s) => ({
+      reps:   Number.isFinite(s.reps)   ? s.reps   : '',
+      weight: Number.isFinite(s.weight) ? s.weight : '',
+    }))
+    .filter((s) => s.reps !== '' && s.weight !== '');
+  formSets = cleanSets.length > 0 ? cleanSets : [{ reps: '', weight: '' }];
+
+  notesInput.value = typeof parsed.notes === 'string' ? parsed.notes : '';
+  setRpe(parsed.rpe);
+
+  refreshForm();
+}
+
+// Show the voice block only if SpeechRecognition is available
+function initVoice() {
+  if (!SpeechRecognition || !voiceBlock) return;
+  voiceBlock.hidden = false;
+  if (voiceDivider) voiceDivider.hidden = false;
+}
+
+if (rpeClearBtn) {
+  rpeClearBtn.addEventListener('click', () => setRpe(null));
+}
+
 // ---------- Init ----------
 
 populateExerciseSelects();
 refreshForm();
 setView('log');
+initVoice();
