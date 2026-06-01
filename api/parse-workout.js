@@ -31,7 +31,7 @@ const RESPONSE_SCHEMA = {
     },
     unit:  { type: 'string', enum: ['kg'] },
     notes: { type: 'string' },
-    rpe:   { type: ['integer', 'null'] },
+    rpe:   { type: 'integer', nullable: true },
   },
   required: ['exercise', 'sets', 'unit', 'notes'],
 };
