@@ -26,6 +26,35 @@ const STARTER_EXERCISES = [
   'Pull-up',
 ];
 
+// PRD-04 Session C: muscle group heat map.
+//
+// Approved 2026-06-15. Keys are exact-match against `workout.exercise` strings.
+// Values are logical muscle names that match SVG path IDs (with _left/_right
+// suffixes stripped at render time — see renderHeatmap).
+// Primary muscles only in v2.
+const MUSCLE_MAP = {
+  'Bench Press':            ['chest', 'triceps', 'shoulders'],
+  'Overhead Press':         ['shoulders', 'triceps'],
+  'Incline Dumbbell Press': ['chest', 'shoulders'],
+  'Tricep Pushdown':        ['triceps'],
+  'Pull-up':                ['back', 'biceps'],
+  'Barbell Row':            ['back', 'biceps'],
+  'Bicep Curl':             ['biceps'],
+  'Squat':                  ['quads', 'glutes'],
+  'Romanian Deadlift':      ['hamstrings', 'glutes'],
+  'Leg Extension':          ['quads'],
+  'Deadlift':               ['hamstrings', 'glutes', 'back'],
+  'Hammer Curl':            ['biceps'],
+  'Lateral Raise':          ['shoulders'],
+};
+
+// Absolute kg thresholds for 4-bucket coloring (Rohan, 2026-06-15).
+// Edit these four lines to retune.
+const HEATMAP_WINDOW_DAYS = 30;
+const BUCKET_LIGHT_MIN  = 1;
+const BUCKET_MEDIUM_MIN = 2500;
+const BUCKET_FULL_MIN   = 7500;
+
 // ---------- Persistence ----------
 
 function loadState() {
@@ -99,6 +128,7 @@ const notesInput      = $('#notes-input');
 const saveBtn         = $('#save-btn');
 const historyList     = $('#history-list');
 const chartContainer  = $('#chart-container');
+const heatmapContainer = $('#heatmap-container');
 const segButtons      = document.querySelectorAll('.seg');
 
 // Wispr-first entry refs (PRD-04 Session B). Textarea + Parse are always
@@ -407,6 +437,9 @@ function relativeDate(iso) {
 // ---------- Progress view ----------
 
 function renderProgress() {
+  // Heat map at the top — independent of the exercise picker below.
+  refreshHeatmap();
+
   const exercise = progressSelect.value;
   // Oldest-first for chart x-axis
   const sessions = state.workouts
@@ -428,6 +461,86 @@ function renderProgress() {
 }
 
 progressSelect.addEventListener('change', renderProgress);
+
+// ---------- Heat map (PRD-04 Session C) ----------
+
+let heatmapLoaded = false;
+let heatmapLoading = null;  // in-flight Promise to dedupe concurrent fetches
+
+async function refreshHeatmap() {
+  if (!heatmapContainer) return;
+  if (!heatmapLoaded) {
+    // Lazy-load the SVG on first Progress visit. Subsequent calls just re-color.
+    if (!heatmapLoading) heatmapLoading = loadHeatmapSVG();
+    try { await heatmapLoading; } catch (e) { return; }
+  }
+  const svg = heatmapContainer.querySelector('svg');
+  if (!svg) return;
+  const volumes = computeMuscleVolume(state.workouts, HEATMAP_WINDOW_DAYS);
+  renderHeatmap(svg, volumes);
+}
+
+async function loadHeatmapSVG() {
+  try {
+    const res = await fetch('/apps/workout/body-diagram.svg', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const svgText = await res.text();
+    heatmapContainer.innerHTML = svgText;
+    heatmapLoaded = true;
+  } catch (err) {
+    console.warn('[heatmap] could not load body-diagram.svg:', err);
+    heatmapContainer.innerHTML = '';  // graceful empty
+    throw err;
+  }
+}
+
+// Cumulative volume per muscle in the last `sinceDays` days.
+// volume = sets × reps × weight (canonical kg). Unmapped exercises silently
+// contribute nothing but are logged once so future-Rohan sees the gap.
+const _unmappedLogged = new Set();
+
+function computeMuscleVolume(workouts, sinceDays = HEATMAP_WINDOW_DAYS) {
+  const cutoff = Date.now() - sinceDays * 86400 * 1000;
+  const totals = {};
+  for (const w of workouts) {
+    const t = new Date(w.date).getTime();
+    if (!Number.isFinite(t) || t < cutoff) continue;
+    const muscles = MUSCLE_MAP[w.exercise];
+    if (!muscles) {
+      if (!_unmappedLogged.has(w.exercise)) {
+        _unmappedLogged.add(w.exercise);
+        console.info('[heatmap] unmapped exercise:', w.exercise);
+      }
+      continue;
+    }
+    if (!Array.isArray(w.sets)) continue;
+    const volume = w.sets.reduce((sum, s) => {
+      const r = Number(s.reps), wt = Number(s.weight);
+      if (!Number.isFinite(r) || !Number.isFinite(wt)) return sum;
+      return sum + (r * wt);
+    }, 0);
+    for (const m of muscles) {
+      totals[m] = (totals[m] || 0) + volume;
+    }
+  }
+  return totals;
+}
+
+function bucketFill(volume) {
+  if (volume < BUCKET_LIGHT_MIN)  return 'var(--border)';
+  if (volume < BUCKET_MEDIUM_MIN) return 'rgba(0, 113, 227, 0.25)';
+  if (volume < BUCKET_FULL_MIN)   return 'rgba(0, 113, 227, 0.55)';
+  return '#0071e3';
+}
+
+function renderHeatmap(svgRootEl, volumes) {
+  svgRootEl.querySelectorAll('path.muscle[id]').forEach((el) => {
+    // "chest_left" -> "chest" so both halves share one volume bucket
+    const muscle = el.id.replace(/_(left|right)$/, '');
+    const v = volumes[muscle] || 0;
+    el.setAttribute('fill', bucketFill(v));
+  });
+}
 
 // Hand-rolled SVG chart. ~60 LOC including axes, gridline, polyline, points.
 function renderChartSVG(points) {

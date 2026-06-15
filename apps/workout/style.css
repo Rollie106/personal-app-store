@@ -273,6 +273,22 @@ select {
 .chart-container .data-line { stroke: var(--accent); stroke-width: 2; fill: none; }
 .chart-container .data-point { fill: var(--accent); }
 
+/* Body heat map (PRD-04 Session C) */
+.heatmap-container {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  margin-bottom: 24px;
+}
+.heatmap-container svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;   /* PRD §3: tap does nothing */
+}
+
 /* Wispr-first entry (PRD-04 Session B) */
 .wispr-block {
   margin-bottom: 16px;
