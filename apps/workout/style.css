@@ -398,3 +398,109 @@ select {
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* Manage custom exercises (PRD-04) */
+.manage-custom {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.manage-custom__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+}
+.manage-custom__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.manage-custom__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--soft);
+  border-radius: 8px;
+}
+.manage-custom__name {
+  font-size: 14px;
+  color: var(--text);
+}
+.manage-custom__remove {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.manage-custom__remove:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #d93025;
+}
+
+/* Multi-exercise preview cards (PRD-04) */
+.preview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.preview-stack__header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.preview-card {
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.preview-card__remove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  appearance: none;
+  background: var(--soft);
+  border: none;
+  color: var(--muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+}
+.preview-card__remove:hover { color: #d93025; }
+.preview-card .field,
+.preview-card .sets {
+  margin-bottom: 12px;
+}
+.preview-card .field__label {
+  font-size: 11px;
+}
+.preview-card .rpe-row {
+  margin-bottom: 0;
+}
+.preview-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.preview-actions .btn { margin-bottom: 0; }
+
+/* When the preview is active, hide the manual entry form below. */
+body.preview-active .manual-form { display: none; }

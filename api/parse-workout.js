@@ -6,15 +6,24 @@
 // Variables. It is NEVER included in any response or logged in detail.
 //
 // Endpoint:  POST /api/parse-workout
-// Body:      { "transcript": "three sets of bench, 8 at 60, 8 at 60, 6 at 65" }
-// Returns:   { "exercise": "...", "sets": [{"reps":N,"weight":N}, ...],
-//              "unit": "kg", "notes": "...", "rpe": null | 1-10 }
+// Body:      { "transcript": "bench 3x8 at 60, then hammer curls 4x10 at 15" }
+// Returns:   { "workouts": [
+//              { "exercise": "...", "sets": [{"reps":N,"weight":N}, ...],
+//                "unit": "kg", "notes": "...", "rpe": null | 1-10 },
+//              ... up to MAX_WORKOUTS entries
+//            ] }
+//
+// Hard cap: MAX_WORKOUTS exercises per call. Above that we return 422 so the
+// user can split the recording. This guards against runaway prompts and keeps
+// the preview UI sane.
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
-// Strict JSON schema for Gemini's responseSchema feature. Guarantees shape.
-const RESPONSE_SCHEMA = {
+const MAX_WORKOUTS = 10;
+
+// Schema for a single workout entry (one exercise + its sets).
+const WORKOUT_ITEM = {
   type: 'object',
   properties: {
     exercise: { type: 'string' },
@@ -36,30 +45,46 @@ const RESPONSE_SCHEMA = {
   required: ['exercise', 'sets', 'unit', 'notes'],
 };
 
+// Top-level: always a `workouts` array. Single-exercise rant returns length 1.
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    workouts: {
+      type: 'array',
+      items: WORKOUT_ITEM,
+    },
+  },
+  required: ['workouts'],
+};
+
 const SYSTEM_INSTRUCTION = `You extract structured workout data from transcribed user speech.
 
-Output STRICT JSON conforming to the response schema. No prose, no markdown, no commentary.
+Output STRICT JSON conforming to the response schema. The top level is always an object with a single "workouts" array. No prose, no markdown, no commentary.
 
-Field rules:
-- exercise: prefer canonical names when close to one of: Bench Press, Squat, Deadlift, Overhead Press, Barbell Row, Pull-up. For other lifts (Romanian Deadlift, Lat Pulldown, Tricep Pushdown, Hip Thrust, etc.) use the most common Title-Case English name. Map informal terms: "bench" -> "Bench Press", "OHP" -> "Overhead Press", "RDLs" -> "Romanian Deadlift", "pull ups" -> "Pull-up", "squats" -> "Squat".
+A single transcript may describe MULTIPLE exercises. Return one entry per distinct exercise. A single-exercise transcript returns a "workouts" array of length 1.
+
+Field rules (per workout entry):
+- exercise: prefer canonical names when close to one of: Bench Press, Squat, Deadlift, Overhead Press, Barbell Row, Pull-up. For other lifts (Romanian Deadlift, Lat Pulldown, Tricep Pushdown, Hammer Curl, Lateral Raise, Hip Thrust, etc.) use the most common Title-Case English name. Map informal terms: "bench" -> "Bench Press", "OHP" -> "Overhead Press", "RDLs" -> "Romanian Deadlift", "pull ups" -> "Pull-up", "squats" -> "Squat", "lat raises" -> "Lateral Raise".
 - sets: an explicit array of {reps, weight} objects. Expand "three sets of eight at 60" to three identical objects. Parse "8 at 60, 8 at 60, 6 at 65" as three distinct objects. Weight 0 is valid (bodyweight Pull-up).
 - unit: ALWAYS "kg". If user says lb / lbs / pounds, convert (multiply by 0.453592) and round to the nearest 0.5 kg before storing in the weight field.
-- notes: capture sensations (felt heavy/strong/easy), injury or discomfort mentions (shoulder tight, lower back fatigue), equipment notes. Strip rep/weight chatter already captured structurally. Empty string if nothing notable.
-- rpe: integer 1-10 ONLY if user explicitly mentions RPE, "rate of perceived exertion", or "felt like an X". Otherwise null.
+- notes: capture sensations (felt heavy/strong/easy), injury or discomfort mentions (shoulder tight, lower back fatigue), equipment notes. Strip rep/weight chatter already captured structurally. Empty string if nothing notable. Do NOT include text about other exercises in this field — that text belongs in its own workout entry.
+- rpe: integer 1-10 ONLY if user explicitly mentions RPE, "rate of perceived exertion", or "felt like an X" for that specific exercise. Otherwise null.
+
+Multi-exercise parsing: phrases like "then I did", "after that", "next was", "and then", or a new exercise name introduce a new entry. Notes attached to a phrase ("shoulder felt tight on the last set of bench") belong on that exercise's entry, not subsequent ones.
 
 Examples:
 
 Input: "three sets of bench, eight at sixty, eight at sixty, six at sixty-five"
-Output: {"exercise":"Bench Press","sets":[{"reps":8,"weight":60},{"reps":8,"weight":60},{"reps":6,"weight":65}],"unit":"kg","notes":"","rpe":null}
+Output: {"workouts":[{"exercise":"Bench Press","sets":[{"reps":8,"weight":60},{"reps":8,"weight":60},{"reps":6,"weight":65}],"unit":"kg","notes":"","rpe":null}]}
 
 Input: "RDLs four sets of six at a hundred kilos last set felt heavy lower back kind of tight rpe 8"
-Output: {"exercise":"Romanian Deadlift","sets":[{"reps":6,"weight":100},{"reps":6,"weight":100},{"reps":6,"weight":100},{"reps":6,"weight":100}],"unit":"kg","notes":"Last set felt heavy. Lower back tight.","rpe":8}
+Output: {"workouts":[{"exercise":"Romanian Deadlift","sets":[{"reps":6,"weight":100},{"reps":6,"weight":100},{"reps":6,"weight":100},{"reps":6,"weight":100}],"unit":"kg","notes":"Last set felt heavy. Lower back tight.","rpe":8}]}
 
-Input: "pull-ups three by ten bodyweight"
-Output: {"exercise":"Pull-up","sets":[{"reps":10,"weight":0},{"reps":10,"weight":0},{"reps":10,"weight":0}],"unit":"kg","notes":"","rpe":null}
+Input: "bench 3 sets of 8 at 60, then hammer curls 4 sets of 10 at 15, then lateral raises 3 sets of 12 at 8"
+Output: {"workouts":[{"exercise":"Bench Press","sets":[{"reps":8,"weight":60},{"reps":8,"weight":60},{"reps":8,"weight":60}],"unit":"kg","notes":"","rpe":null},{"exercise":"Hammer Curl","sets":[{"reps":10,"weight":15},{"reps":10,"weight":15},{"reps":10,"weight":15},{"reps":10,"weight":15}],"unit":"kg","notes":"","rpe":null},{"exercise":"Lateral Raise","sets":[{"reps":12,"weight":8},{"reps":12,"weight":8},{"reps":12,"weight":8}],"unit":"kg","notes":"","rpe":null}]}
 
-Input: "bench press 5 sets of 5 at 135 pounds"
-Output: {"exercise":"Bench Press","sets":[{"reps":5,"weight":61.5},{"reps":5,"weight":61.5},{"reps":5,"weight":61.5},{"reps":5,"weight":61.5},{"reps":5,"weight":61.5}],"unit":"kg","notes":"","rpe":null}`;
+Input: "pull-ups three by ten bodyweight, then bench press 5 sets of 5 at 135 pounds, shoulder felt tight on bench"
+Output: {"workouts":[{"exercise":"Pull-up","sets":[{"reps":10,"weight":0},{"reps":10,"weight":0},{"reps":10,"weight":0}],"unit":"kg","notes":"","rpe":null},{"exercise":"Bench Press","sets":[{"reps":5,"weight":61.5},{"reps":5,"weight":61.5},{"reps":5,"weight":61.5},{"reps":5,"weight":61.5},{"reps":5,"weight":61.5}],"unit":"kg","notes":"Shoulder felt tight.","rpe":null}]}`;
 
 export default async function handler(req, res) {
   // CORS not needed: function and client share an origin (same Vercel project).
@@ -131,6 +156,23 @@ export default async function handler(req, res) {
     parsed = JSON.parse(text);
   } catch (e) {
     return res.status(502).json({ error: 'Gemini returned invalid JSON.', raw: text.slice(0, 300) });
+  }
+
+  // Defensive: schema should guarantee `workouts` is an array, but verify.
+  if (!parsed || !Array.isArray(parsed.workouts)) {
+    return res.status(502).json({ error: 'Gemini returned an unexpected shape.', raw: JSON.stringify(parsed).slice(0, 300) });
+  }
+
+  // Cap: refuse oversized rants so the preview UI stays manageable.
+  if (parsed.workouts.length > MAX_WORKOUTS) {
+    return res.status(422).json({
+      error: `Too many exercises in one rant (${parsed.workouts.length}). Split into two recordings — max ${MAX_WORKOUTS} per rant.`,
+    });
+  }
+
+  // Empty is also a soft failure — most likely Gemini understood the audio as non-workout chatter.
+  if (parsed.workouts.length === 0) {
+    return res.status(422).json({ error: 'No workouts detected in the transcript. Try again with clearer exercise names and sets.' });
   }
 
   return res.status(200).json(parsed);

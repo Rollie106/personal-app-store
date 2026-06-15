@@ -10,8 +10,14 @@
 
 const STORAGE_KEY = 'workout-tracker:v1';
 
-// Hard-coded for v1 (PRD §10). "Add custom exercise" is intentionally out of scope.
-const EXERCISES = [
+// PRD-04: custom exercises persisted separately so clearing workout history
+// doesn't lose a curated exercise list, and vice versa.
+const CUSTOM_EXERCISES_KEY = 'custom-exercises:v1';
+
+// Starter list. Voice/text parsing adds anything else the user mentions
+// to `customExercises` (persisted to localStorage), and both lists render
+// together — starter first, then a divider, then custom (alphabetical).
+const STARTER_EXERCISES = [
   'Bench Press',
   'Squat',
   'Deadlift',
@@ -38,8 +44,47 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+// Custom exercises (PRD-04). Mirror loadState/saveState pattern but on a
+// separate key so the two registries can be cleared independently.
+function loadCustomExercises() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_EXERCISES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed.exercises) ? parsed.exercises.filter((s) => typeof s === 'string' && s.trim()) : [];
+  } catch (err) {
+    console.warn('Could not parse custom exercises; starting fresh.', err);
+    return [];
+  }
+}
+
+function saveCustomExercises(list) {
+  localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify({ exercises: list }));
+}
+
+function addCustomExercise(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return false;
+  // Don't duplicate starter or existing custom
+  if (STARTER_EXERCISES.includes(clean)) return false;
+  if (customExercises.includes(clean)) return false;
+  customExercises.push(clean);
+  customExercises.sort((a, b) => a.localeCompare(b));
+  saveCustomExercises(customExercises);
+  return true;
+}
+
+function removeCustomExercise(name) {
+  const i = customExercises.indexOf(name);
+  if (i < 0) return false;
+  customExercises.splice(i, 1);
+  saveCustomExercises(customExercises);
+  return true;
+}
+
 // One source of truth, mutated through helpers below.
 let state = loadState();
+let customExercises = loadCustomExercises();
 
 // ---------- DOM refs ----------
 
@@ -69,6 +114,17 @@ const rpeRow          = $('#rpe-row');
 const rpeValueEl      = $('#rpe-value');
 const rpeClearBtn     = $('#rpe-clear');
 
+// Manage custom exercises (PRD-04)
+const manageCustom    = $('#manage-custom');
+const manageCustomList = $('#manage-custom-list');
+
+// Multi-exercise preview (PRD-04)
+const previewStackWrap = $('#preview-stack-wrap');
+const previewStack     = $('#preview-stack');
+const previewCount     = $('#preview-count');
+const previewSaveBtn   = $('#preview-save-btn');
+const previewDiscardBtn = $('#preview-discard-btn');
+
 const views = {
   log:      $('#view-log'),
   history:  $('#view-history'),
@@ -97,10 +153,37 @@ segButtons.forEach((b) => {
 
 // ---------- Log view ----------
 
+// Build the dropdown HTML used by every exercise <select> on the page:
+// starter list (alphabetical) + divider + custom list (alphabetical).
+// Re-render any time customExercises changes.
+function buildExerciseOptionsHTML() {
+  const starter = STARTER_EXERCISES.slice().sort((a, b) => a.localeCompare(b));
+  const starterOpts = starter.map((ex) => `<option value="${escapeHTML(ex)}">${escapeHTML(ex)}</option>`).join('');
+  if (customExercises.length === 0) return starterOpts;
+  const customOpts = customExercises.map((ex) => `<option value="${escapeHTML(ex)}">${escapeHTML(ex)}</option>`).join('');
+  // Disabled divider so it can't be selected. Width-padded em-dashes for visual separation.
+  return starterOpts + `<option disabled>──────</option>` + customOpts;
+}
+
 function populateExerciseSelects() {
-  const opts = EXERCISES.map((ex) => `<option value="${escapeHTML(ex)}">${escapeHTML(ex)}</option>`).join('');
-  exerciseSelect.innerHTML = opts;
-  progressSelect.innerHTML = opts;
+  const html = buildExerciseOptionsHTML();
+  // Preserve current selection where possible so re-renders don't reset the dropdown.
+  const prevMain = exerciseSelect.value;
+  const prevProg = progressSelect.value;
+  exerciseSelect.innerHTML = html;
+  progressSelect.innerHTML = html;
+  if (prevMain && Array.from(exerciseSelect.options).some((o) => o.value === prevMain)) {
+    exerciseSelect.value = prevMain;
+  }
+  if (prevProg && Array.from(progressSelect.options).some((o) => o.value === prevProg)) {
+    progressSelect.value = prevProg;
+  }
+  // Also re-render any open preview-card dropdowns
+  document.querySelectorAll('.preview-card select[data-card-field="exercise"]').forEach((sel) => {
+    const prev = sel.value;
+    sel.innerHTML = html;
+    if (prev && Array.from(sel.options).some((o) => o.value === prev)) sel.value = prev;
+  });
 }
 
 function renderSetsList(sets) {
@@ -130,14 +213,45 @@ function setRpe(value) {
   }
 }
 
-// Add an exercise option to both selects if it's not already present.
+// Add an exercise to the persisted custom list if it isn't already known
+// (starter or custom). Persists to localStorage and re-renders all dropdowns
+// + the "Manage custom exercises" UI.
 function addExerciseIfNew(name) {
-  if (!name) return;
-  const exists = Array.from(exerciseSelect.options).some((o) => o.value === name);
-  if (exists) return;
-  const html = `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`;
-  exerciseSelect.insertAdjacentHTML('beforeend', html);
-  progressSelect.insertAdjacentHTML('beforeend', html);
+  const added = addCustomExercise(name);
+  if (!added) return;
+  populateExerciseSelects();
+  renderManageCustom();
+}
+
+// Renders the small "Manage custom exercises" section at the bottom of Log.
+// Hidden when there are none.
+function renderManageCustom() {
+  if (!manageCustom || !manageCustomList) return;
+  if (customExercises.length === 0) {
+    manageCustom.hidden = true;
+    manageCustomList.innerHTML = '';
+    return;
+  }
+  manageCustom.hidden = false;
+  manageCustomList.innerHTML = customExercises.map((name) => `
+    <li class="manage-custom__item">
+      <span class="manage-custom__name">${escapeHTML(name)}</span>
+      <button type="button" class="manage-custom__remove" data-name="${escapeHTML(name)}" aria-label="Remove ${escapeHTML(name)}">×</button>
+    </li>
+  `).join('');
+}
+
+if (manageCustomList) {
+  manageCustomList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.manage-custom__remove');
+    if (!btn) return;
+    const name = btn.dataset.name;
+    if (!name) return;
+    if (!confirm(`Remove "${name}" from your custom exercises?`)) return;
+    removeCustomExercise(name);
+    populateExerciseSelects();
+    renderManageCustom();
+  });
 }
 
 function refreshForm() {
@@ -489,7 +603,7 @@ if (parseBtn) {
     parseBtn.textContent = 'Parsing…';
     try {
       const parsed = await parseWithGemini(transcript);
-      applyParsedToForm(parsed);
+      renderPreviewCards(parsed.workouts);
       transcriptBox.hidden = true;
       transcriptText.value = '';
       liveTranscript = '';
@@ -519,31 +633,214 @@ async function parseWithGemini(transcript) {
     const detail = data?.error || `HTTP ${res.status}`;
     throw new Error(detail);
   }
-  if (!data || !data.exercise || !Array.isArray(data.sets)) {
+  if (!data || !Array.isArray(data.workouts)) {
     throw new Error('Parser returned an unexpected shape.');
   }
   return data;
 }
 
-function applyParsedToForm(parsed) {
-  // Add new exercise to the list if needed, then select it
-  addExerciseIfNew(parsed.exercise);
-  exerciseSelect.value = parsed.exercise;
+// ---------- Multi-exercise preview (PRD-04) ----------
+//
+// After parse: render N editable cards into #preview-stack. Each card mirrors
+// the manual form (exercise dropdown, sets list with × per row, notes input,
+// optional RPE chip), plus a per-card × in the top right to remove the whole
+// card before saving. Save-all writes all cards as separate workout entries
+// with one shared timestamp.
 
-  // Replace form sets with parsed sets (sanitized)
-  const cleanSets = parsed.sets
-    .map((s) => ({
-      reps:   Number.isFinite(s.reps)   ? s.reps   : '',
-      weight: Number.isFinite(s.weight) ? s.weight : '',
-    }))
-    .filter((s) => s.reps !== '' && s.weight !== '');
-  formSets = cleanSets.length > 0 ? cleanSets : [{ reps: '', weight: '' }];
+function renderPreviewCards(workouts) {
+  if (!previewStack || !previewStackWrap) return;
 
-  notesInput.value = typeof parsed.notes === 'string' ? parsed.notes : '';
-  setRpe(parsed.rpe);
+  // First persist any new exercises so dropdowns include them.
+  workouts.forEach((w) => addExerciseIfNew(w.exercise));
 
-  refreshForm();
+  const html = workouts.map((w, i) => renderPreviewCardHTML(w, i)).join('');
+  previewStack.innerHTML = html;
+
+  // After mount, set each card's dropdown value (innerHTML can't pre-select reliably)
+  Array.from(previewStack.querySelectorAll('.preview-card')).forEach((cardEl, i) => {
+    const sel = cardEl.querySelector('select[data-card-field="exercise"]');
+    if (sel) sel.value = workouts[i].exercise;
+  });
+
+  previewCount.textContent = String(workouts.length);
+  previewStackWrap.hidden = false;
+  document.body.classList.add('preview-active');
 }
+
+function renderPreviewCardHTML(w, index) {
+  const sets = Array.isArray(w.sets) ? w.sets : [];
+  const setsHTML = (sets.length > 0 ? sets : [{ reps: '', weight: '' }])
+    .map((s, i) => renderCardSetRowHTML(s, i))
+    .join('');
+  const rpeShown = Number.isInteger(w.rpe) && w.rpe >= 1 && w.rpe <= 10;
+  return `
+    <div class="preview-card" data-card-index="${index}" data-rpe="${rpeShown ? w.rpe : ''}">
+      <button type="button" class="preview-card__remove" data-action="remove-card" aria-label="Remove this exercise">×</button>
+      <label class="field">
+        <span class="field__label">Exercise</span>
+        <select data-card-field="exercise">${buildExerciseOptionsHTML()}</select>
+      </label>
+      <div class="sets">
+        <div class="sets__header"><span>Sets</span></div>
+        <ul class="sets__list" data-card-sets>${setsHTML}</ul>
+        <button type="button" class="btn btn--ghost" data-action="add-set">+ Add set</button>
+      </div>
+      <label class="field">
+        <span class="field__label">Notes (optional)</span>
+        <input type="text" data-card-field="notes" value="${escapeHTML(w.notes || '')}" placeholder="How did it feel?">
+      </label>
+      ${rpeShown ? `
+        <div class="rpe-row">
+          <span class="rpe-chip">RPE <span data-card-rpe-display>${w.rpe}</span></span>
+          <button type="button" class="rpe-clear" data-action="clear-rpe" aria-label="Clear RPE">×</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderCardSetRowHTML(s, i) {
+  return `
+    <li class="set-row" data-index="${i}">
+      <input type="number" inputmode="numeric" min="0" placeholder="Reps"   value="${s.reps   ?? ''}" data-field="reps">
+      <input type="number" inputmode="decimal" min="0" step="0.5" placeholder="Weight (kg)" value="${s.weight ?? ''}" data-field="weight">
+      <button type="button" class="set-row__remove" aria-label="Remove set">×</button>
+    </li>
+  `;
+}
+
+function readCardData(cardEl) {
+  const sel = cardEl.querySelector('select[data-card-field="exercise"]');
+  const notes = cardEl.querySelector('input[data-card-field="notes"]');
+  const rows = Array.from(cardEl.querySelectorAll('.set-row'));
+  const sets = rows.map((row) => ({
+    reps:   row.querySelector('[data-field="reps"]').value,
+    weight: row.querySelector('[data-field="weight"]').value,
+  }));
+  const rpeAttr = cardEl.dataset.rpe;
+  const rpe = rpeAttr ? Number(rpeAttr) : null;
+  return {
+    exercise: sel ? sel.value : '',
+    sets,
+    notes: notes ? notes.value.trim() : '',
+    rpe: Number.isInteger(rpe) && rpe >= 1 && rpe <= 10 ? rpe : null,
+  };
+}
+
+function discardPreview() {
+  if (!previewStack || !previewStackWrap) return;
+  previewStack.innerHTML = '';
+  previewStackWrap.hidden = true;
+  previewCount.textContent = '0';
+  document.body.classList.remove('preview-active');
+}
+
+function saveAllPreviewCards() {
+  if (!previewStack) return;
+  const cards = Array.from(previewStack.querySelectorAll('.preview-card'));
+  if (cards.length === 0) {
+    discardPreview();
+    return;
+  }
+
+  // Validate every card up front so we don't half-save.
+  const entries = [];
+  const sharedTimestamp = new Date().toISOString();
+  for (let i = 0; i < cards.length; i++) {
+    const raw = readCardData(cards[i]);
+    if (!raw.exercise) {
+      alert(`Card ${i + 1}: exercise is empty.`);
+      return;
+    }
+    const sets = [];
+    for (const s of raw.sets) {
+      const reps   = Number(s.reps);
+      const weight = Number(s.weight);
+      if (!Number.isFinite(reps) || reps <= 0) continue;
+      if (!Number.isFinite(weight) || weight < 0) continue;
+      sets.push({ reps, weight });
+    }
+    if (sets.length === 0) {
+      alert(`Card ${i + 1} (${raw.exercise}): add at least one set with reps and weight (use 0 for bodyweight).`);
+      return;
+    }
+    const entry = {
+      id: `${Date.now()}-${i}`,
+      date: sharedTimestamp,
+      exercise: raw.exercise,
+      sets,
+      unit: 'kg',
+      notes: raw.notes,
+    };
+    if (raw.rpe != null) entry.rpe = raw.rpe;
+    entries.push(entry);
+  }
+
+  // Unshift in reverse so the first card ends up at the top of history.
+  for (let i = entries.length - 1; i >= 0; i--) {
+    state.workouts.unshift(entries[i]);
+  }
+  saveState(state);
+
+  discardPreview();
+  setView('history');
+
+  // Briefly highlight the newly saved batch (top N entries).
+  const items = historyList.querySelectorAll('.history-item');
+  for (let i = 0; i < entries.length && i < items.length; i++) {
+    items[i].classList.add('history-item--new');
+  }
+  setTimeout(() => {
+    historyList.querySelectorAll('.history-item--new').forEach((el) => el.classList.remove('history-item--new'));
+  }, 1800);
+}
+
+// Event delegation for inside-card interactions: remove card, add set,
+// remove set row, clear RPE.
+if (previewStack) {
+  previewStack.addEventListener('click', (e) => {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    const cardEl = e.target.closest('.preview-card');
+    if (!cardEl) return;
+
+    if (action === 'remove-card') {
+      cardEl.remove();
+      const remaining = previewStack.querySelectorAll('.preview-card').length;
+      previewCount.textContent = String(remaining);
+      if (remaining === 0) discardPreview();
+      return;
+    }
+
+    if (action === 'add-set') {
+      const list = cardEl.querySelector('[data-card-sets]');
+      if (!list) return;
+      const i = list.querySelectorAll('.set-row').length;
+      list.insertAdjacentHTML('beforeend', renderCardSetRowHTML({ reps: '', weight: '' }, i));
+      return;
+    }
+
+    if (action === 'clear-rpe') {
+      cardEl.dataset.rpe = '';
+      const row = cardEl.querySelector('.rpe-row');
+      if (row) row.remove();
+      return;
+    }
+
+    if (e.target.closest('.set-row__remove')) {
+      const row = e.target.closest('.set-row');
+      const list = cardEl.querySelector('[data-card-sets]');
+      if (row && list) {
+        row.remove();
+        if (list.querySelectorAll('.set-row').length === 0) {
+          list.insertAdjacentHTML('beforeend', renderCardSetRowHTML({ reps: '', weight: '' }, 0));
+        }
+      }
+    }
+  });
+}
+
+if (previewSaveBtn)    previewSaveBtn.addEventListener('click', saveAllPreviewCards);
+if (previewDiscardBtn) previewDiscardBtn.addEventListener('click', discardPreview);
 
 // Show the voice block only if SpeechRecognition is available
 function initVoice() {
@@ -560,5 +857,6 @@ if (rpeClearBtn) {
 
 populateExerciseSelects();
 refreshForm();
+renderManageCustom();
 setView('log');
 initVoice();

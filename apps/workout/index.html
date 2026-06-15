@@ -48,35 +48,57 @@
         <div id="voice-error" class="voice-error" hidden></div>
       </div>
 
+      <!-- Multi-exercise preview (PRD-04): populated after a voice/text parse.
+           One <div class="preview-card"> per parsed workout, each editable.
+           Save-all writes all entries with one shared timestamp.
+           When visible, the manual-form section below is hidden via body.preview-active. -->
+      <div id="preview-stack-wrap" hidden>
+        <div class="preview-stack__header">Review &amp; save (<span id="preview-count">0</span>)</div>
+        <div id="preview-stack" class="preview-stack"></div>
+        <div class="preview-actions">
+          <button type="button" id="preview-discard-btn" class="btn btn--ghost">Discard all</button>
+          <button type="button" id="preview-save-btn"    class="btn btn--primary">Save all</button>
+        </div>
+      </div>
+
       <div id="voice-divider" class="divider" hidden><span>or fill manually</span></div>
 
-      <label class="field">
-        <span class="field__label">Exercise</span>
-        <select id="exercise-select"></select>
-      </label>
+      <!-- Manual entry form: hidden while a multi-exercise preview is active. -->
+      <div class="manual-form">
+        <label class="field">
+          <span class="field__label">Exercise</span>
+          <select id="exercise-select"></select>
+        </label>
 
-      <button type="button" id="repeat-btn" class="btn btn--secondary">↻ Repeat last workout</button>
+        <button type="button" id="repeat-btn" class="btn btn--secondary">↻ Repeat last workout</button>
 
-      <div class="sets">
-        <div class="sets__header">
-          <span>Sets</span>
+        <div class="sets">
+          <div class="sets__header">
+            <span>Sets</span>
+          </div>
+          <ul id="sets-list" class="sets__list"></ul>
+          <button type="button" id="add-set-btn" class="btn btn--ghost">+ Add set</button>
         </div>
-        <ul id="sets-list" class="sets__list"></ul>
-        <button type="button" id="add-set-btn" class="btn btn--ghost">+ Add set</button>
+
+        <label class="field">
+          <span class="field__label">Notes (optional)</span>
+          <input id="notes-input" type="text" placeholder="How did it feel?">
+        </label>
+
+        <!-- RPE chip: shown when voice parse extracted an RPE value. Cleared by tapping ×. -->
+        <div id="rpe-row" class="rpe-row" hidden>
+          <span class="rpe-chip">RPE <span id="rpe-value">—</span></span>
+          <button type="button" id="rpe-clear" class="rpe-clear" aria-label="Clear RPE">×</button>
+        </div>
+
+        <button type="button" id="save-btn" class="btn btn--primary">Save workout</button>
       </div>
 
-      <label class="field">
-        <span class="field__label">Notes (optional)</span>
-        <input id="notes-input" type="text" placeholder="How did it feel?">
-      </label>
-
-      <!-- RPE chip: shown when voice parse extracted an RPE value. Cleared by tapping ×. -->
-      <div id="rpe-row" class="rpe-row" hidden>
-        <span class="rpe-chip">RPE <span id="rpe-value">—</span></span>
-        <button type="button" id="rpe-clear" class="rpe-clear" aria-label="Clear RPE">×</button>
-      </div>
-
-      <button type="button" id="save-btn" class="btn btn--primary">Save workout</button>
+      <!-- Manage custom exercises: visible only when at least one custom exists. -->
+      <section id="manage-custom" class="manage-custom" hidden aria-label="Manage custom exercises">
+        <h2 class="manage-custom__title">Manage custom exercises</h2>
+        <ul id="manage-custom-list" class="manage-custom__list"></ul>
+      </section>
     </section>
 
     <!-- HISTORY VIEW -->
