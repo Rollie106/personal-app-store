@@ -273,58 +273,21 @@ select {
 .chart-container .data-line { stroke: var(--accent); stroke-width: 2; fill: none; }
 .chart-container .data-point { fill: var(--accent); }
 
-/* Voice block */
-.voice { margin-bottom: 12px; }
-.mic-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
-
-/* Recording state: red background + soft pulse */
-.btn--recording {
-  background: #d93025;
-  color: #fff;
+/* Wispr-first entry (PRD-04 Session B) */
+.wispr-block {
+  margin-bottom: 16px;
 }
-.btn--recording::before {
-  content: "";
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #fff;
-  margin-right: 8px;
-  animation: rec-pulse 1.2s ease-in-out infinite;
-}
-@keyframes rec-pulse {
-  0%   { opacity: 1;   transform: scale(1); }
-  50%  { opacity: 0.4; transform: scale(0.85); }
-  100% { opacity: 1;   transform: scale(1); }
-}
-
-.transcript-box {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 12px;
-  box-shadow: var(--shadow);
-}
-.transcript-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 6px;
-}
-.transcript-text {
+.wispr-block .transcript-text {
+  min-height: 96px;
+  font-size: 16px;            /* 16px prevents iOS zoom-on-focus */
+  line-height: 1.45;
   margin-bottom: 10px;
 }
-.transcript-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.wispr-block .field {
+  margin-bottom: 12px;
 }
-.transcript-actions .btn { margin-bottom: 0; }
 
+/* Inline error message shown above Parse */
 .voice-error {
   background: #fdecea;
   color: #b3261e;
@@ -335,27 +298,75 @@ select {
   margin-bottom: 12px;
 }
 
-/* "or fill manually" divider */
-.divider {
-  position: relative;
-  text-align: center;
-  margin: 18px 0;
+/* "Use device mic instead" — small inline link below Parse */
+.mic-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 4px;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
 }
-.divider::before {
+.mic-link:hover { text-decoration: underline; }
+.mic-link--recording {
+  color: #d93025;
+}
+.mic-link--recording::before {
   content: "";
-  position: absolute;
-  inset: 50% 0 auto 0;
-  height: 1px;
-  background: var(--border);
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d93025;
+  margin-right: 4px;
+  animation: rec-pulse 1.2s ease-in-out infinite;
 }
-.divider span {
-  position: relative;
-  background: var(--bg);
-  padding: 0 12px;
-  font-size: 12px;
+@keyframes rec-pulse {
+  0%   { opacity: 1;   transform: scale(1); }
+  50%  { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1;   transform: scale(1); }
+}
+
+/* "Or fill manually" disclosure — uses native <details>/<summary> */
+.manual-disclosure {
+  margin: 18px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.manual-disclosure > summary {
+  list-style: none;        /* hide default browser triangle */
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
+  padding: 4px 0;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.manual-disclosure > summary::-webkit-details-marker { display: none; }
+.manual-disclosure > summary::before {
+  content: "▸";
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 120ms ease;
+  display: inline-block;
+}
+.manual-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+.manual-disclosure > .manual-form {
+  margin-top: 14px;
 }
 
 /* RPE chip */
@@ -502,5 +513,8 @@ select {
 }
 .preview-actions .btn { margin-bottom: 0; }
 
-/* When the preview is active, hide the manual entry form below. */
+/* When the preview is active (parsed cards on screen), hide every other entry
+   option so the user focuses on reviewing + saving the parsed batch. */
+body.preview-active .wispr-block,
+body.preview-active .manual-disclosure,
 body.preview-active .manual-form { display: none; }

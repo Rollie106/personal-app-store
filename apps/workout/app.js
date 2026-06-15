@@ -101,13 +101,12 @@ const historyList     = $('#history-list');
 const chartContainer  = $('#chart-container');
 const segButtons      = document.querySelectorAll('.seg');
 
-// Voice-related refs (may be absent if SpeechRecognition isn't supported)
-const voiceBlock      = $('#voice-block');
-const voiceDivider    = $('#voice-divider');
+// Wispr-first entry refs (PRD-04 Session B). Textarea + Parse are always
+// visible; the device mic is a small inline link, hidden if SpeechRecognition
+// isn't available in this browser.
+const wisprBlock      = $('#wispr-block');
 const micBtn          = $('#mic-btn');
-const transcriptBox   = $('#transcript-box');
 const transcriptText  = $('#transcript-text');
-const discardBtn      = $('#discard-btn');
 const parseBtn        = $('#parse-btn');
 const voiceError      = $('#voice-error');
 const rpeRow          = $('#rpe-row');
@@ -517,15 +516,16 @@ function clearVoiceError() {
 
 function setRecordingUI(on) {
   isRecording = on;
-  micBtn.classList.toggle('btn--recording', on);
-  micBtn.textContent = on ? 'Stop · listening…' : '🎤 Describe workout';
+  micBtn.classList.toggle('mic-link--recording', on);
+  micBtn.textContent = on ? '■ Stop recording' : '🎤 Use device mic instead';
 }
 
 function startRecording() {
   clearVoiceError();
+  // Append-not-replace: capture any existing textarea content (typed, pasted,
+  // or Wispr-dictated) so the user can add more via mic without losing it.
+  const startingText = transcriptText.value.trim();
   liveTranscript = '';
-  transcriptText.value = '';
-  transcriptBox.hidden = false;
 
   recognition = new SpeechRecognition();
   recognition.lang = navigator.language || 'en-US';
@@ -539,7 +539,8 @@ function startRecording() {
       if (res.isFinal) liveTranscript += res[0].transcript + ' ';
       else interim += res[0].transcript;
     }
-    transcriptText.value = (liveTranscript + interim).trim();
+    const combined = `${startingText} ${liveTranscript} ${interim}`.replace(/\s+/g, ' ').trim();
+    transcriptText.value = combined;
   };
 
   recognition.onerror = (event) => {
@@ -580,16 +581,6 @@ if (micBtn) {
   });
 }
 
-if (discardBtn) {
-  discardBtn.addEventListener('click', () => {
-    if (isRecording) stopRecording();
-    transcriptText.value = '';
-    liveTranscript = '';
-    transcriptBox.hidden = true;
-    clearVoiceError();
-  });
-}
-
 if (parseBtn) {
   parseBtn.addEventListener('click', async () => {
     if (isRecording) stopRecording();
@@ -604,7 +595,7 @@ if (parseBtn) {
     try {
       const parsed = await parseWithGemini(transcript);
       renderPreviewCards(parsed.workouts);
-      transcriptBox.hidden = true;
+      // Clear the textarea so a follow-up rant starts fresh.
       transcriptText.value = '';
       liveTranscript = '';
     } catch (err) {
@@ -842,11 +833,11 @@ if (previewStack) {
 if (previewSaveBtn)    previewSaveBtn.addEventListener('click', saveAllPreviewCards);
 if (previewDiscardBtn) previewDiscardBtn.addEventListener('click', discardPreview);
 
-// Show the voice block only if SpeechRecognition is available
+// Wispr-block is always visible (textarea + Parse work without mic support).
+// Only the device-mic fallback link is gated on SpeechRecognition availability.
 function initVoice() {
-  if (!SpeechRecognition || !voiceBlock) return;
-  voiceBlock.hidden = false;
-  if (voiceDivider) voiceDivider.hidden = false;
+  if (!SpeechRecognition) return;
+  if (micBtn) micBtn.hidden = false;
 }
 
 if (rpeClearBtn) {

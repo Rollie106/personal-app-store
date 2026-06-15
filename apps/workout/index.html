@@ -34,24 +34,26 @@
   <main>
     <!-- LOG VIEW -->
     <section id="view-log" class="view" aria-label="Log a workout">
-      <!-- Voice block: tap mic, describe workout, parse to form. Hidden if browser lacks SpeechRecognition. -->
-      <div id="voice-block" class="voice" hidden>
-        <button type="button" id="mic-btn" class="btn btn--primary mic-btn">🎤 Describe workout</button>
-        <div id="transcript-box" class="transcript-box" hidden>
-          <span class="transcript-label">Transcript (edit if needed)</span>
-          <textarea id="transcript-text" class="transcript-text" rows="3" aria-label="Transcript"></textarea>
-          <div class="transcript-actions">
-            <button type="button" id="discard-btn" class="btn btn--ghost">Discard</button>
-            <button type="button" id="parse-btn"   class="btn btn--secondary">Parse →</button>
-          </div>
-        </div>
+      <!-- Wispr-first entry (PRD-04 Session B). The textarea is the always-visible
+           primary input. Wispr Flow's keyboard, hardware keyboard, and paste all
+           fill it directly. Parse runs the same multi-exercise pipeline as voice.
+           The mic button is demoted to a small inline link below Parse — kept as
+           a fallback for users without Wispr Flow. -->
+      <div id="wispr-block" class="wispr-block">
+        <label class="field">
+          <span class="field__label">Describe your workout</span>
+          <textarea id="transcript-text" class="transcript-text" rows="4" placeholder="e.g. bench press 3 sets of 8 at 60, then hammer curls 4 sets of 10 at 15" aria-label="Workout transcript"></textarea>
+        </label>
         <div id="voice-error" class="voice-error" hidden></div>
+        <button type="button" id="parse-btn" class="btn btn--primary">Parse →</button>
+        <button type="button" id="mic-btn" class="mic-link" hidden>🎤 Use device mic instead</button>
       </div>
 
-      <!-- Multi-exercise preview (PRD-04): populated after a voice/text parse.
+      <!-- Multi-exercise preview (PRD-04 Session A): populated after parse.
            One <div class="preview-card"> per parsed workout, each editable.
            Save-all writes all entries with one shared timestamp.
-           When visible, the manual-form section below is hidden via body.preview-active. -->
+           When visible, the wispr-block and manual disclosure below are hidden
+           via body.preview-active. -->
       <div id="preview-stack-wrap" hidden>
         <div class="preview-stack__header">Review &amp; save (<span id="preview-count">0</span>)</div>
         <div id="preview-stack" class="preview-stack"></div>
@@ -61,38 +63,39 @@
         </div>
       </div>
 
-      <div id="voice-divider" class="divider" hidden><span>or fill manually</span></div>
+      <!-- Manual entry, default-collapsed. Native <details> for accessibility. -->
+      <details id="manual-disclosure" class="manual-disclosure">
+        <summary>Or fill manually</summary>
+        <div class="manual-form">
+          <label class="field">
+            <span class="field__label">Exercise</span>
+            <select id="exercise-select"></select>
+          </label>
 
-      <!-- Manual entry form: hidden while a multi-exercise preview is active. -->
-      <div class="manual-form">
-        <label class="field">
-          <span class="field__label">Exercise</span>
-          <select id="exercise-select"></select>
-        </label>
+          <button type="button" id="repeat-btn" class="btn btn--secondary">↻ Repeat last workout</button>
 
-        <button type="button" id="repeat-btn" class="btn btn--secondary">↻ Repeat last workout</button>
-
-        <div class="sets">
-          <div class="sets__header">
-            <span>Sets</span>
+          <div class="sets">
+            <div class="sets__header">
+              <span>Sets</span>
+            </div>
+            <ul id="sets-list" class="sets__list"></ul>
+            <button type="button" id="add-set-btn" class="btn btn--ghost">+ Add set</button>
           </div>
-          <ul id="sets-list" class="sets__list"></ul>
-          <button type="button" id="add-set-btn" class="btn btn--ghost">+ Add set</button>
+
+          <label class="field">
+            <span class="field__label">Notes (optional)</span>
+            <input id="notes-input" type="text" placeholder="How did it feel?">
+          </label>
+
+          <!-- RPE chip: shown when voice parse extracted an RPE value. Cleared by tapping ×. -->
+          <div id="rpe-row" class="rpe-row" hidden>
+            <span class="rpe-chip">RPE <span id="rpe-value">—</span></span>
+            <button type="button" id="rpe-clear" class="rpe-clear" aria-label="Clear RPE">×</button>
+          </div>
+
+          <button type="button" id="save-btn" class="btn btn--primary">Save workout</button>
         </div>
-
-        <label class="field">
-          <span class="field__label">Notes (optional)</span>
-          <input id="notes-input" type="text" placeholder="How did it feel?">
-        </label>
-
-        <!-- RPE chip: shown when voice parse extracted an RPE value. Cleared by tapping ×. -->
-        <div id="rpe-row" class="rpe-row" hidden>
-          <span class="rpe-chip">RPE <span id="rpe-value">—</span></span>
-          <button type="button" id="rpe-clear" class="rpe-clear" aria-label="Clear RPE">×</button>
-        </div>
-
-        <button type="button" id="save-btn" class="btn btn--primary">Save workout</button>
-      </div>
+      </details>
 
       <!-- Manage custom exercises: visible only when at least one custom exists. -->
       <section id="manage-custom" class="manage-custom" hidden aria-label="Manage custom exercises">
