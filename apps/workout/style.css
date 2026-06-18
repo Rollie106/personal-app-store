@@ -238,6 +238,59 @@ select {
   color: var(--muted);
   font-style: italic;
 }
+
+/* Edit affordance — small pencil in the top-right corner of read-only items */
+.history-item {
+  position: relative;
+}
+.history-item__edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 15px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+.history-item__edit-btn:hover {
+  background: var(--soft);
+  color: var(--accent);
+}
+
+/* Edit-mode history item */
+.history-item--editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.15), var(--shadow);
+}
+.history-item--editing .field {
+  margin-bottom: 12px;
+}
+.history-item--editing .field__label {
+  font-size: 11px;
+}
+
+/* Three-button row at the bottom of an editing item */
+.history-edit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+.history-edit-actions .btn { margin-bottom: 0; }
+
+/* Destructive variant for Delete */
+.btn--danger {
+  background: transparent;
+  color: #d93025;
+  border-color: var(--border);
+}
+.btn--danger:active { background: rgba(217, 48, 37, 0.08); }
 .history-item--new {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.15), var(--shadow);

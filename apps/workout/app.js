@@ -387,13 +387,175 @@ saveBtn.addEventListener('click', () => {
 
 // ---------- History view ----------
 
+// At most one history card is in edit mode at a time. null = none.
+let editingId = null;
+
+// Find a workout entry by id. Returns the index or -1.
+function findWorkoutIndex(id) {
+  return state.workouts.findIndex((w) => w.id === id);
+}
+
+// Merge a patch (exercise / date / sets / notes / rpe) into an existing
+// entry. rpe gets removed if patch.rpe is null/undefined.
+function updateWorkout(id, patch) {
+  const i = findWorkoutIndex(id);
+  if (i < 0) return false;
+  const entry = { ...state.workouts[i], ...patch };
+  if (patch.rpe == null) delete entry.rpe;
+  state.workouts[i] = entry;
+  saveState(state);
+  return true;
+}
+
+function deleteWorkout(id) {
+  const i = findWorkoutIndex(id);
+  if (i < 0) return false;
+  state.workouts.splice(i, 1);
+  saveState(state);
+  return true;
+}
+
+// <input type="datetime-local"> uses "YYYY-MM-DDTHH:MM" in LOCAL time.
+// Our entries store `date` as an ISO UTC string. Convert in both directions.
+function isoToLocalInput(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 16);
+}
+function localInputToIso(local) {
+  if (!local) return null;
+  const d = new Date(local);  // browser parses as local time
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function renderHistory() {
   if (state.workouts.length === 0) {
     historyList.innerHTML = `<li class="empty">No workouts yet. Log your first one in the Log tab.</li>`;
     return;
   }
-  historyList.innerHTML = state.workouts.map((w) => `
-    <li class="history-item">
+  // Sort by date desc so edits to timestamps re-order naturally.
+  const sorted = state.workouts.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  historyList.innerHTML = sorted.map((w) =>
+    w.id === editingId ? renderHistoryItemEditHTML(w) : renderHistoryItemReadHTML(w)
+  ).join('');
+  // innerHTML alone doesn't pre-select <select> options; set value after mount.
+  historyList.querySelectorAll('.history-item--editing').forEach((li) => {
+    const id = li.dataset.id;
+    const w = state.workouts[findWorkoutIndex(id)];
+    if (!w) return;
+    const sel = li.querySelector('select[data-edit-field="exercise"]');
+    if (sel && Array.from(sel.options).some((o) => o.value === w.exercise)) {
+      sel.value = w.exercise;
+    }
+  });
+}
+
+// Read all fields from an edit-mode history item back into an entry-shaped object.
+function readHistoryEditCard(li) {
+  const id = li.dataset.id;
+  const exercise = li.querySelector('select[data-edit-field="exercise"]')?.value || '';
+  const dateLocal = li.querySelector('input[data-edit-field="date"]')?.value || '';
+  const date = localInputToIso(dateLocal);
+  const notes = li.querySelector('input[data-edit-field="notes"]')?.value.trim() || '';
+  const rpeAttr = li.dataset.rpe;
+  const rpe = rpeAttr ? Number(rpeAttr) : null;
+  const sets = Array.from(li.querySelectorAll('.set-row')).map((row) => ({
+    reps:   row.querySelector('[data-field="reps"]').value,
+    weight: row.querySelector('[data-field="weight"]').value,
+  }));
+  return { id, exercise, date, notes, rpe, sets };
+}
+
+// Single delegated click handler. Routes by data-action.
+historyList.addEventListener('click', (e) => {
+  const actionEl = e.target.closest('[data-action]');
+  const removeRowBtn = e.target.closest('.set-row__remove');
+  const li = e.target.closest('.history-item');
+  if (!li) return;
+  const id = li.dataset.id;
+
+  if (removeRowBtn) {
+    const list = li.querySelector('[data-edit-sets]');
+    const row = removeRowBtn.closest('.set-row');
+    if (list && row) {
+      row.remove();
+      if (list.querySelectorAll('.set-row').length === 0) {
+        list.insertAdjacentHTML('beforeend', renderCardSetRowHTML({ reps: '', weight: '' }, 0));
+      }
+    }
+    return;
+  }
+
+  if (!actionEl) return;
+  const action = actionEl.dataset.action;
+
+  if (action === 'edit') {
+    editingId = id;
+    renderHistory();
+    return;
+  }
+
+  if (action === 'cancel') {
+    editingId = null;
+    renderHistory();
+    return;
+  }
+
+  if (action === 'add-set') {
+    const list = li.querySelector('[data-edit-sets]');
+    if (!list) return;
+    const i = list.querySelectorAll('.set-row').length;
+    list.insertAdjacentHTML('beforeend', renderCardSetRowHTML({ reps: '', weight: '' }, i));
+    return;
+  }
+
+  if (action === 'clear-rpe') {
+    li.dataset.rpe = '';
+    li.querySelector('.rpe-row')?.remove();
+    return;
+  }
+
+  if (action === 'delete') {
+    if (!confirm('Delete this workout? This cannot be undone.')) return;
+    deleteWorkout(id);
+    editingId = null;
+    renderHistory();
+    return;
+  }
+
+  if (action === 'save') {
+    const raw = readHistoryEditCard(li);
+    if (!raw.exercise) { alert('Pick an exercise.'); return; }
+    if (!raw.date)     { alert('Pick a valid date.'); return; }
+    const sets = [];
+    for (const s of raw.sets) {
+      const reps   = Number(s.reps);
+      const weight = Number(s.weight);
+      if (!Number.isFinite(reps) || reps <= 0) continue;
+      if (!Number.isFinite(weight) || weight < 0) continue;
+      sets.push({ reps, weight });
+    }
+    if (sets.length === 0) {
+      alert('Add at least one set with reps and weight (use 0 for bodyweight).');
+      return;
+    }
+    updateWorkout(id, {
+      exercise: raw.exercise,
+      date: raw.date,
+      sets,
+      notes: raw.notes,
+      rpe: raw.rpe,
+    });
+    editingId = null;
+    renderHistory();
+  }
+});
+
+function renderHistoryItemReadHTML(w) {
+  return `
+    <li class="history-item" data-id="${escapeHTML(w.id)}">
+      <button type="button" class="history-item__edit-btn" data-action="edit" aria-label="Edit workout">✎</button>
       <div class="history-item__meta">
         <span class="history-item__exercise">
           ${escapeHTML(w.exercise)}${Number.isInteger(w.rpe) ? `<span class="history-item__rpe">RPE ${w.rpe}</span>` : ''}
@@ -403,7 +565,45 @@ function renderHistory() {
       <div class="history-item__sets">${escapeHTML(summarizeSets(w.sets))}</div>
       ${w.notes ? `<div class="history-item__notes">${escapeHTML(w.notes)}</div>` : ''}
     </li>
-  `).join('');
+  `;
+}
+
+function renderHistoryItemEditHTML(w) {
+  const sets = Array.isArray(w.sets) && w.sets.length > 0 ? w.sets : [{ reps: '', weight: '' }];
+  const setsHTML = sets.map((s, i) => renderCardSetRowHTML(s, i)).join('');
+  const rpeShown = Number.isInteger(w.rpe) && w.rpe >= 1 && w.rpe <= 10;
+  return `
+    <li class="history-item history-item--editing" data-id="${escapeHTML(w.id)}" data-rpe="${rpeShown ? w.rpe : ''}">
+      <label class="field">
+        <span class="field__label">Exercise</span>
+        <select data-edit-field="exercise">${buildExerciseOptionsHTML()}</select>
+      </label>
+      <label class="field">
+        <span class="field__label">Date &amp; time</span>
+        <input type="datetime-local" data-edit-field="date" value="${escapeHTML(isoToLocalInput(w.date))}">
+      </label>
+      <div class="sets">
+        <div class="sets__header"><span>Sets</span></div>
+        <ul class="sets__list" data-edit-sets>${setsHTML}</ul>
+        <button type="button" class="btn btn--ghost" data-action="add-set">+ Add set</button>
+      </div>
+      <label class="field">
+        <span class="field__label">Notes (optional)</span>
+        <input type="text" data-edit-field="notes" value="${escapeHTML(w.notes || '')}" placeholder="How did it feel?">
+      </label>
+      ${rpeShown ? `
+        <div class="rpe-row">
+          <span class="rpe-chip">RPE <span data-edit-rpe-display>${w.rpe}</span></span>
+          <button type="button" class="rpe-clear" data-action="clear-rpe" aria-label="Clear RPE">×</button>
+        </div>
+      ` : ''}
+      <div class="history-edit-actions">
+        <button type="button" class="btn btn--danger" data-action="delete">Delete</button>
+        <button type="button" class="btn btn--ghost"  data-action="cancel">Cancel</button>
+        <button type="button" class="btn btn--primary" data-action="save">Save</button>
+      </div>
+    </li>
+  `;
 }
 
 // Collapse identical (reps, weight) runs: "3 × 8 @ 60kg, 1 × 6 @ 65kg"
