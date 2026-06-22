@@ -7,6 +7,14 @@
       "icon": "🏋️",
       "status": "live",
       "category": "fitness"
+    },
+    {
+      "slug": "botil-gas-lift",
+      "name": "BOTIL Gas Lift 3D",
+      "description": "Interactive 3D product explainer for the BOTIL Gas Lift System.",
+      "icon": "🔩",
+      "status": "live",
+      "category": "industrial"
     }
   ]
 }

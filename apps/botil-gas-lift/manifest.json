@@ -1,0 +1,13 @@
+{
+  "name": "BOTIL Gas Lift 3D",
+  "short_name": "Gas Lift",
+  "description": "Interactive 3D product explainer for the BOTIL Gas Lift System",
+  "start_url": "/apps/botil-gas-lift/",
+  "scope": "/apps/botil-gas-lift/",
+  "display": "standalone",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "icons": [
+    { "src": "/apps/botil-gas-lift/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

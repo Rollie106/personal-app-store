@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Gas lift valve: vertical tube with collar rings and end caps -->
+  <rect x="210" y="60" width="92" height="392" rx="46" fill="#1e55c0"/>
+  <!-- Collar rings -->
+  <rect x="192" y="148" width="128" height="24" rx="12" fill="#8090aa"/>
+  <rect x="192" y="244" width="128" height="24" rx="12" fill="#8090aa"/>
+  <rect x="192" y="340" width="128" height="24" rx="12" fill="#8090aa"/>
+  <!-- Top cap -->
+  <rect x="222" y="40" width="68" height="30" rx="14" fill="#1a3f82"/>
+  <!-- Bottom taper -->
+  <polygon points="210,452 256,476 302,452" fill="#0d2244"/>
+  <!-- Orifice port -->
+  <rect x="302" y="220" width="28" height="36" rx="6" fill="#8ab4d4"/>
+</svg>

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BOTIL Gas Lift System — Interactive 3D Viewer</title>
+<link rel="manifest" href="manifest.json">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0f1e;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
+canvas{position:fixed;inset:0;display:block}
+
+#back{
+  position:fixed;top:16px;left:16px;z-index:20;
+  color:rgba(255,255,255,.6);text-decoration:none;
+  font:500 13px/1 system-ui;
+  background:rgba(8,12,24,.75);backdrop-filter:blur(12px);
+  padding:8px 15px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.11);
+  transition:color .15s;
+}
+#back:hover{color:#fff}
+
+#header{
+  position:fixed;top:18px;left:50%;transform:translateX(-50%);
+  z-index:20;text-align:center;pointer-events:none;
+}
+#header-title{
+  font:700 17px/1 system-ui;letter-spacing:-.01em;
+  color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.9);
+}
+#header-sub{
+  font:400 10px/1 system-ui;color:rgba(255,255,255,.38);
+  margin-top:5px;letter-spacing:.06em;text-transform:uppercase;
+}
+
+#tooltip{
+  position:fixed;z-index:50;pointer-events:none;
+  background:#fff;color:#1d1d1f;
+  font:600 12px/1.3 system-ui;
+  padding:7px 12px;border-radius:8px;
+  box-shadow:0 4px 24px rgba(0,0,0,.45);
+  opacity:0;transition:opacity .1s;
+  white-space:nowrap;
+}
+#tooltip.vis{opacity:1}
+
+#panel{
+  position:fixed;top:0;right:0;bottom:0;
+  width:min(360px,100vw);z-index:30;
+  background:rgba(7,11,22,.94);backdrop-filter:blur(24px);
+  border-left:1px solid rgba(255,255,255,.07);
+  transform:translateX(100%);
+  transition:transform .32s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;
+}
+#panel.open{transform:translateX(0)}
+
+#panel-close{
+  position:absolute;top:14px;right:14px;
+  background:rgba(255,255,255,.07);border:none;
+  color:rgba(255,255,255,.5);font-size:18px;
+  width:34px;height:34px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+#panel-close:hover{background:rgba(255,255,255,.14);color:#fff}
+
+#panel-body{padding:58px 26px 26px;flex:1;overflow-y:auto}
+
+.p-name{font:700 20px/1.2 system-ui;color:#fff;letter-spacing:-.02em;margin-bottom:14px}
+.p-desc{font:400 14px/1.66 system-ui;color:rgba(255,255,255,.7);margin-bottom:20px}
+
+.fact-box{
+  background:rgba(42,93,255,.09);
+  border:1px solid rgba(42,93,255,.26);
+  border-radius:10px;padding:14px 16px;margin-bottom:24px;
+}
+.fact-lbl{
+  font:700 10px/1 system-ui;letter-spacing:.1em;
+  text-transform:uppercase;color:#6eb5ff;margin-bottom:7px;
+}
+.fact-txt{font:500 13px/1.55 system-ui;color:rgba(255,255,255,.8)}
+
+#panel-cta{
+  width:100%;padding:13px;border-radius:10px;
+  background:linear-gradient(135deg,#1a3d7c,#2a5dbf);
+  border:1px solid rgba(42,93,255,.38);
+  color:#fff;font:600 14px/1 system-ui;
+  cursor:pointer;transition:opacity .15s;
+}
+#panel-cta:hover{opacity:.82}
+
+#panel-foot{
+  padding:14px 26px;
+  border-top:1px solid rgba(255,255,255,.05);
+  font:400 11px/1.4 system-ui;color:rgba(255,255,255,.26);
+  text-align:center;flex-shrink:0;
+}
+
+#toolbar{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  z-index:20;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;
+  background:rgba(7,11,22,.82);backdrop-filter:blur(16px);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:32px;padding:7px 12px;
+}
+.tb{
+  background:transparent;border:1px solid transparent;
+  color:rgba(255,255,255,.6);font:500 12px/1 system-ui;
+  padding:7px 13px;border-radius:18px;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+  white-space:nowrap;
+}
+.tb:hover{background:rgba(255,255,255,.07);color:#fff}
+.tb.on{background:rgba(42,93,255,.2);border-color:rgba(42,93,255,.5);color:#7eb8ff}
+
+.lbl{
+  position:fixed;z-index:10;pointer-events:none;
+  background:rgba(7,11,22,.78);backdrop-filter:blur(8px);
+  border:1px solid rgba(42,93,255,.38);
+  color:#a4c8ee;font:500 11px/1 system-ui;letter-spacing:.02em;
+  padding:5px 10px;border-radius:10px;
+  opacity:0;transition:opacity .2s;
+  display:flex;align-items:center;gap:7px;
+}
+.lbl.vis{opacity:1}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<a id="back" href="/">← Apps</a>
+
+<div id="header">
+  <div id="header-title">BOTIL Gas Lift System</div>
+  <div id="header-sub">Illustrative 3D Model · Not CAD Accurate</div>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="panel" role="dialog" aria-modal="true" aria-label="Part detail">
+  <button id="panel-close" aria-label="Close">×</button>
+  <div id="panel-body">
+    <div class="p-name" id="pn"></div>
+    <div class="p-desc" id="pd"></div>
+    <div class="fact-box">
+      <div class="fact-lbl">Product Specification</div>
+      <div class="fact-txt" id="pf"></div>
+    </div>
+    <button id="panel-cta">Request Spec Sheet →</button>
+  </div>
+  <div id="panel-foot">⚠ Illustrative model — not CAD-accurate.<br>Contact BOTIL for technical specifications.</div>
+</div>
+
+<div id="toolbar" role="toolbar">
+  <button class="tb" id="btn-r">⏸ Pause</button>
+  <button class="tb" id="btn-v">↺ Reset</button>
+  <button class="tb" id="btn-s">⌀ 1.500"</button>
+  <button class="tb" id="btn-e">⊞ Explode</button>
+  <button class="tb" id="btn-l">Labels</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Part metadata ──────────────────────────────────────────────────────────
+const PARTS = [
+  {
+    id: 'top_latch_assembly',
+    displayName: 'Top Latch Assembly',
+    tip: 'Top Latch Assembly',
+    desc: 'The upper latch/connection area secures the gas lift valve within the Side-Pocket Mandrel. The latching profile engages a wireline retrieving tool for installation and retrieval.',
+    fact: 'BOTIL Gas Lift Valves with Top Latch Assembly are engineered for reliable wireline operations in both vertical and deviated wells.',
+    col: 0x1a3f82, hov: 0x2a62e0, sel: 0x4a8fff,
+    dot: '#4a8fff', explOff: 2.2, anchorY: 3.8,
+  },
+  {
+    id: 'ipo_valve_body',
+    displayName: 'IPO Gas Lift Valve Body',
+    tip: 'IPO Valve Body',
+    desc: 'The primary injection-pressure operated valve assembly houses the pressure-charged dome and controls when gas injection begins. The heart of the Gas Lift System.',
+    fact: 'Available in 1.500" and 1.000" IPO type configurations to match standard and slimline Side-Pocket Mandrel pockets.',
+    col: 0x1e55c0, hov: 0x2e7af5, sel: 0x5aa8ff,
+    dot: '#5aa8ff', explOff: 0, anchorY: 0.5,
+  },
+  {
+    id: 'orifice_flow_area',
+    displayName: 'Orifice / Flow Port',
+    tip: 'Orifice Flow Area',
+    desc: 'The side-ported orifice controls the volumetric flow rate of injection gas entering the production tubing. Orifice size is selected based on well deliverability and design injection rate.',
+    fact: 'BOTIL provides Orifice Valves and Dummy Valves for this zone, enabling operators to optimize injection without replacing the full valve assembly.',
+    col: 0x8ab4d4, hov: 0xaad8f8, sel: 0xc8eeff,
+    dot: '#aad8f8', explOff: 0.3, anchorY: 0.82,
+  },
+  {
+    id: 'material_collar_section',
+    displayName: 'Material / Collar Section',
+    tip: 'Material & Collars',
+    desc: 'Machined collar rings provide mechanical seating surfaces, act as check valve retainers, and position the valve within the mandrel pocket. Constructed from high-strength corrosion-resistant alloy.',
+    fact: 'Available in SS 316, SS 304, and Monel material grades. Meets NACE MR0175 requirements for H₂S-bearing service environments.',
+    col: 0x8090aa, hov: 0xaabbd0, sel: 0xc8dcf0,
+    dot: '#aabbd0', explOff: -0.6, anchorY: 0.5,
+  },
+  {
+    id: 'bottom_collet_latching_profile',
+    displayName: 'Bottom Collet Latching Profile',
+    tip: 'Bottom Collet Profile',
+    desc: 'The integral collet-style latching profile locks the valve into the mandrel pocket orientation, preventing rotation and axial displacement under flowing conditions.',
+    fact: 'BOTIL Bottom Collet profiles are compatible with major mandrel manufacturers\' running tool systems, per API specifications and user requirements.',
+    col: 0x0d2244, hov: 0x1a3a72, sel: 0x2a5aaa,
+    dot: '#2a5aaa', explOff: -2.4, anchorY: -3.5,
+  },
+];
+
+// ── Renderer / Scene / Camera ──────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0f1e);
+scene.fog = new THREE.Fog(0x0a0f1e, 24, 48);
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0.4, 10.5);
+const DEF_POS = new THREE.Vector3(0, 0.4, 10.5);
+
+// Lights
+scene.add(new THREE.AmbientLight(0x889bcc, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(5, 10, 6);
+sun.castShadow = true;
+scene.add(sun);
+const rimL = new THREE.PointLight(0x3377ff, 4.0, 24);
+rimL.position.set(-6, 3, 7);
+scene.add(rimL);
+const warmL = new THREE.PointLight(0xff9944, 0.55, 14);
+warmL.position.set(4, -4, 4);
+scene.add(warmL);
+const backL = new THREE.PointLight(0x224488, 1.2, 18);
+backL.position.set(0, 2, -8);
+scene.add(backL);
+
+// Grid
+const grid = new THREE.GridHelper(28, 28, 0x1a3d7c, 0x0d1e44);
+grid.position.y = -5.1;
+grid.material.opacity = 0.4;
+grid.material.transparent = true;
+scene.add(grid);
+
+// Controls
+const ctrl = new OrbitControls(camera, canvas);
+ctrl.enablePan = false;
+ctrl.enableDamping = true;
+ctrl.dampingFactor = 0.06;
+ctrl.autoRotate = true;
+ctrl.autoRotateSpeed = 0.85;
+ctrl.minDistance = 5;
+ctrl.maxDistance = 20;
+ctrl.target.set(0, 0, 0);
+
+// ── Model ─────────────────────────────────────────────────────────────────
+const toolGroup = new THREE.Group();
+scene.add(toolGroup);
+
+const groups = [];  // parallel to PARTS
+const meshes = [];  // flat raycasting list
+
+function mkmat(color, metalness = 0.78, roughness = 0.24) {
+  return new THREE.MeshStandardMaterial({ color, metalness, roughness });
+}
+
+function addMesh(geo, color, group, metalness, roughness) {
+  const m = new THREE.Mesh(geo, mkmat(color, metalness, roughness));
+  m.castShadow = true;
+  m.userData.group = group;
+  m.userData.defCol = color;
+  group.add(m);
+  meshes.push(m);
+  return m;
+}
+
+// ── Part 0: Top Latch Assembly ─────────────────────────────────────────────
+{
+  const g = new THREE.Group();
+  g.userData.partId = PARTS[0].id;
+  const c = PARTS[0].col;
+
+  addMesh(new THREE.CylinderGeometry(0.34, 0.43, 0.52, 24), c, g).position.y = 3.16;
+  addMesh(new THREE.CylinderGeometry(0.27, 0.34, 0.74, 24), c, g).position.y = 3.77;
+  addMesh(new THREE.CylinderGeometry(0.15, 0.27, 0.38, 16), c, g).position.y = 4.31;
+  // latch groove ring
+  const lr = addMesh(new THREE.TorusGeometry(0.305, 0.055, 8, 32), 0x607090, g, 0.9, 0.3);
+  lr.position.y = 3.28; lr.rotation.x = Math.PI / 2;
+  // label anchor
+  const la = new THREE.Object3D(); la.position.set(0.72, PARTS[0].anchorY, 0); g.add(la); g.userData.la = la;
+
+  toolGroup.add(g); groups.push(g);
+}
+
+// ── Part 1: IPO Valve Body ─────────────────────────────────────────────────
+{
+  const g = new THREE.Group();
+  g.userData.partId = PARTS[1].id;
+  const c = PARTS[1].col;
+
+  const body = addMesh(new THREE.CylinderGeometry(0.44, 0.44, 5.28, 32), c, g, 0.86, 0.17);
+  body.position.y = 0.5;
+  // subtle lengthwise highlight seam
+  const seam = addMesh(new THREE.CylinderGeometry(0.443, 0.443, 5.28, 4), 0x2266cc, g, 0.9, 0.12);
+  seam.position.y = 0.5;
+  const la = new THREE.Object3D(); la.position.set(0.72, PARTS[1].anchorY, 0); g.add(la); g.userData.la = la;
+
+  toolGroup.add(g); groups.push(g);
+}
+
+// ── Part 2: Orifice / Flow Area ────────────────────────────────────────────
+{
+  const g = new THREE.Group();
+  g.userData.partId = PARTS[2].id;
+
+  const port = addMesh(new THREE.BoxGeometry(0.18, 0.44, 0.17), PARTS[2].col, g, 0.5, 0.5);
+  port.position.set(0.53, 0.82, 0);
+  const hole = addMesh(new THREE.CylinderGeometry(0.07, 0.07, 0.24, 12), 0x030810, g, 0.2, 0.9);
+  hole.rotation.z = Math.PI / 2; hole.position.set(0.55, 0.82, 0);
+  const la = new THREE.Object3D(); la.position.set(0.72, PARTS[2].anchorY, 0); g.add(la); g.userData.la = la;
+
+  toolGroup.add(g); groups.push(g);
+}
+
+// ── Part 3: Material / Collar Section ─────────────────────────────────────
+{
+  const g = new THREE.Group();
+  g.userData.partId = PARTS[3].id;
+  const c = PARTS[3].col;
+
+  for (const y of [2.14, 0.5, -1.02]) {
+    const r = addMesh(new THREE.TorusGeometry(0.48, 0.07, 8, 36), c, g, 0.9, 0.27);
+    r.position.y = y; r.rotation.x = Math.PI / 2;
+  }
+  const la = new THREE.Object3D(); la.position.set(0.72, PARTS[3].anchorY, 0); g.add(la); g.userData.la = la;
+
+  toolGroup.add(g); groups.push(g);
+}
+
+// ── Part 4: Bottom Collet ─────────────────────────────────────────────────
+{
+  const g = new THREE.Group();
+  g.userData.partId = PARTS[4].id;
+  const c = PARTS[4].col;
+
+  addMesh(new THREE.CylinderGeometry(0.43, 0.30, 0.88, 24), c, g, 0.7, 0.45).position.y = -2.44;
+  addMesh(new THREE.CylinderGeometry(0.30, 0.24, 1.06, 24), c, g, 0.7, 0.45).position.y = -3.37;
+
+  // collet fingers
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const f = addMesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), 0x18284a, g, 0.8, 0.4);
+    f.position.set(Math.cos(a) * 0.19, -3.74, Math.sin(a) * 0.19);
+  }
+  addMesh(new THREE.CylinderGeometry(0.22, 0.07, 0.42, 16), c, g, 0.7, 0.45).position.y = -4.12;
+
+  const la = new THREE.Object3D(); la.position.set(0.72, PARTS[4].anchorY, 0); g.add(la); g.userData.la = la;
+
+  toolGroup.add(g); groups.push(g);
+}
+
+// ── Label DOM ──────────────────────────────────────────────────────────────
+const labelEls = PARTS.map((p) => {
+  const el = document.createElement('div');
+  el.className = 'lbl';
+  const dot = document.createElement('span');
+  dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${p.dot};flex-shrink:0`;
+  el.appendChild(dot);
+  el.appendChild(document.createTextNode(' ' + p.displayName));
+  document.body.appendChild(el);
+  return el;
+});
+
+// ── Interaction state ──────────────────────────────────────────────────────
+let hovG = null, selG = null;
+let autoRot = true;
+let exploded = false, explProg = 0, explTarget = 0;
+let szScale = 1, szTarget = 1;
+let labelsOn = false;
+let mx = 0, my = 0;
+let dragDist = 0, mdownX = 0, mdownY = 0;
+
+const raycaster = new THREE.Raycaster();
+const ptr = new THREE.Vector2(-9, -9);
+
+// ── State application ──────────────────────────────────────────────────────
+function setState(group, state) {
+  const pi = groups.indexOf(group);
+  const p = PARTS[pi];
+  group.traverse(child => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const m = child.material;
+    if (state === 'def') {
+      m.color.setHex(child.userData.defCol);
+      m.emissive.setHex(0x000000);
+      m.emissiveIntensity = 0;
+      m.opacity = 1; m.transparent = false;
+    } else if (state === 'hov') {
+      m.color.setHex(p.hov); m.emissive.setHex(p.hov);
+      m.emissiveIntensity = 0.3;
+      m.opacity = 1; m.transparent = false;
+    } else if (state === 'sel') {
+      m.color.setHex(p.sel); m.emissive.setHex(p.sel);
+      m.emissiveIntensity = 0.5;
+      m.opacity = 1; m.transparent = false;
+    } else if (state === 'dim') {
+      m.color.setHex(child.userData.defCol);
+      m.emissive.setHex(0x000000); m.emissiveIntensity = 0;
+      m.opacity = 0.22; m.transparent = true;
+    }
+  });
+}
+function resetAll() { groups.forEach(g => setState(g, 'def')); }
+
+// ── Tooltip ────────────────────────────────────────────────────────────────
+const tip = document.getElementById('tooltip');
+function showTip(pi) {
+  tip.textContent = PARTS[pi].tip;
+  tip.style.left = (mx + 16) + 'px';
+  tip.style.top  = (my - 42) + 'px';
+  tip.classList.add('vis');
+}
+function hideTip() { tip.classList.remove('vis'); }
+
+// ── Panel ──────────────────────────────────────────────────────────────────
+const panel = document.getElementById('panel');
+function openPanel(pi) {
+  const p = PARTS[pi];
+  document.getElementById('pn').textContent = p.displayName;
+  document.getElementById('pd').textContent = p.desc;
+  document.getElementById('pf').textContent = p.fact;
+  panel.classList.add('open');
+}
+function closePanel() {
+  panel.classList.remove('open');
+  resetAll(); selG = null;
+}
+
+function selectGroup(g) {
+  if (selG === g) { closePanel(); return; }
+  if (selG) setState(selG, 'def');
+  selG = g;
+  groups.forEach(gr => setState(gr, gr === g ? 'sel' : 'dim'));
+  openPanel(groups.indexOf(g));
+}
+
+document.getElementById('panel-close').addEventListener('click', closePanel);
+document.getElementById('panel-cta').addEventListener('click', () =>
+  alert('Spec sheet request noted.\nPlease contact BOTIL directly for technical specifications.')
+);
+
+// ── Mouse / touch events ───────────────────────────────────────────────────
+window.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  dragDist += Math.hypot(e.clientX - mdownX, e.clientY - mdownY);
+  mdownX = e.clientX; mdownY = e.clientY;
+});
+canvas.addEventListener('mousedown', e => { dragDist = 0; mdownX = e.clientX; mdownY = e.clientY; });
+canvas.addEventListener('click', () => {
+  if (dragDist > 6) return;
+  if (hovG) selectGroup(hovG); else closePanel();
+});
+
+let tStartX = 0, tStartY = 0;
+canvas.addEventListener('touchstart', e => {
+  tStartX = e.touches[0].clientX; tStartY = e.touches[0].clientY;
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  const t = e.changedTouches[0];
+  if (Math.abs(t.clientX - tStartX) < 12 && Math.abs(t.clientY - tStartY) < 12) {
+    ptr.x = (t.clientX / innerWidth) * 2 - 1;
+    ptr.y = -(t.clientY / innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ptr, camera);
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (hits.length) selectGroup(hits[0].object.userData.group); else closePanel();
+  }
+}, { passive: true });
+
+// ── Buttons ────────────────────────────────────────────────────────────────
+const btnR = document.getElementById('btn-r');
+btnR.addEventListener('click', () => {
+  autoRot = !autoRot;
+  ctrl.autoRotate = autoRot;
+  btnR.textContent = autoRot ? '⏸ Pause' : '▶ Resume';
+  btnR.classList.toggle('on', !autoRot);
+});
+
+document.getElementById('btn-v').addEventListener('click', () => {
+  camera.position.copy(DEF_POS);
+  ctrl.target.set(0, 0, 0);
+  ctrl.update();
+});
+
+const btnS = document.getElementById('btn-s');
+let smallMode = false;
+btnS.addEventListener('click', () => {
+  smallMode = !smallMode;
+  szTarget = smallMode ? 0.667 : 1.0;
+  btnS.textContent = smallMode ? '⌀ 1.000"' : '⌀ 1.500"';
+  btnS.classList.toggle('on', smallMode);
+});
+
+const btnE = document.getElementById('btn-e');
+btnE.addEventListener('click', () => {
+  exploded = !exploded;
+  explTarget = exploded ? 1 : 0;
+  btnE.textContent = exploded ? '⊟ Collapse' : '⊞ Explode';
+  btnE.classList.toggle('on', exploded);
+  if (selG) closePanel();
+});
+
+const btnL = document.getElementById('btn-l');
+btnL.addEventListener('click', () => {
+  labelsOn = !labelsOn;
+  btnL.classList.toggle('on', labelsOn);
+  if (!labelsOn) labelEls.forEach(el => el.classList.remove('vis'));
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ── Animation loop ─────────────────────────────────────────────────────────
+const tmpV = new THREE.Vector3();
+const wpV = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Explode lerp
+  explProg += (explTarget - explProg) * 0.07;
+  groups.forEach((g, i) => { g.position.y = PARTS[i].explOff * explProg; });
+
+  // Size scale lerp
+  szScale += (szTarget - szScale) * 0.07;
+  toolGroup.scale.set(szScale, 1, szScale);
+
+  // Hover raycast
+  raycaster.setFromCamera(ptr, camera);
+  const hits = raycaster.intersectObjects(meshes, false);
+  const hitG = hits.length ? hits[0].object.userData.group : null;
+
+  if (hitG !== hovG) {
+    if (hovG && hovG !== selG) setState(hovG, 'def');
+    hovG = hitG;
+    if (hovG && hovG !== selG) setState(hovG, 'hov');
+    canvas.style.cursor = hovG ? 'pointer' : 'default';
+  }
+
+  if (hovG && hovG !== selG) {
+    tip.style.left = (mx + 16) + 'px';
+    tip.style.top  = (my - 42) + 'px';
+    showTip(groups.indexOf(hovG));
+  } else {
+    hideTip();
+  }
+
+  // Labels world→screen
+  if (labelsOn) {
+    toolGroup.updateMatrixWorld();
+    labelEls.forEach((el, i) => {
+      groups[i].userData.la.getWorldPosition(wpV);
+      wpV.project(camera);
+      if (wpV.z > 1) { el.classList.remove('vis'); return; }
+      el.style.left = ((wpV.x * .5 + .5) * innerWidth + 10) + 'px';
+      el.style.top  = ((-wpV.y * .5 + .5) * innerHeight - 12) + 'px';
+      el.classList.add('vis');
+    });
+  }
+
+  ctrl.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>
