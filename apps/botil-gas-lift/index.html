@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.json">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:#0a0f1e;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
+html,body{width:100%;height:100%;overflow:hidden;background:#101c32;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
 canvas{position:fixed;inset:0;display:block}
 
 #back{
@@ -182,8 +182,8 @@ const PARTS = [
     tip: 'Top Latch Assembly',
     desc: 'The upper latch/connection area secures the gas lift valve within the Side-Pocket Mandrel. The latching profile engages a wireline retrieving tool for installation and retrieval.',
     fact: 'BOTIL Gas Lift Valves with Top Latch Assembly are engineered for reliable wireline operations in both vertical and deviated wells.',
-    col: 0x1a3f82, hov: 0x2a62e0, sel: 0x4a8fff,
-    dot: '#4a8fff', explOff: 2.2, anchorY: 3.8,
+    col: 0x2a5caa, hov: 0x3a82ee, sel: 0x5aa4ff,
+    dot: '#5aa4ff', explOff: 2.2, anchorY: 3.8,
   },
   {
     id: 'ipo_valve_body',
@@ -191,8 +191,8 @@ const PARTS = [
     tip: 'IPO Valve Body',
     desc: 'The primary injection-pressure operated valve assembly houses the pressure-charged dome and controls when gas injection begins. The heart of the Gas Lift System.',
     fact: 'Available in 1.500" and 1.000" IPO type configurations to match standard and slimline Side-Pocket Mandrel pockets.',
-    col: 0x1e55c0, hov: 0x2e7af5, sel: 0x5aa8ff,
-    dot: '#5aa8ff', explOff: 0, anchorY: 0.5,
+    col: 0x2e6ee0, hov: 0x4a98ff, sel: 0x6ab8ff,
+    dot: '#6ab8ff', explOff: 0, anchorY: 0.5,
   },
   {
     id: 'orifice_flow_area',
@@ -209,8 +209,8 @@ const PARTS = [
     tip: 'Material & Collars',
     desc: 'Machined collar rings provide mechanical seating surfaces, act as check valve retainers, and position the valve within the mandrel pocket. Constructed from high-strength corrosion-resistant alloy.',
     fact: 'Available in SS 316, SS 304, and Monel material grades. Meets NACE MR0175 requirements for H₂S-bearing service environments.',
-    col: 0x8090aa, hov: 0xaabbd0, sel: 0xc8dcf0,
-    dot: '#aabbd0', explOff: -0.6, anchorY: 0.5,
+    col: 0x99aac4, hov: 0xbbd0e6, sel: 0xd4e8ff,
+    dot: '#bbd0e6', explOff: -0.6, anchorY: 0.5,
   },
   {
     id: 'bottom_collet_latching_profile',
@@ -218,8 +218,8 @@ const PARTS = [
     tip: 'Bottom Collet Profile',
     desc: 'The integral collet-style latching profile locks the valve into the mandrel pocket orientation, preventing rotation and axial displacement under flowing conditions.',
     fact: 'BOTIL Bottom Collet profiles are compatible with major mandrel manufacturers\' running tool systems, per API specifications and user requirements.',
-    col: 0x0d2244, hov: 0x1a3a72, sel: 0x2a5aaa,
-    dot: '#2a5aaa', explOff: -2.4, anchorY: -3.5,
+    col: 0x1a3866, hov: 0x2a5594, sel: 0x3a75bb,
+    dot: '#3a75bb', explOff: -2.4, anchorY: -3.5,
   },
 ];
 
@@ -229,38 +229,43 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.75;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0f1e);
-scene.fog = new THREE.Fog(0x0a0f1e, 24, 48);
+scene.background = new THREE.Color(0x101c32);
+scene.fog = new THREE.Fog(0x101c32, 28, 55);
 
 const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0, 0.4, 10.5);
 const DEF_POS = new THREE.Vector3(0, 0.4, 10.5);
 
 // Lights
-scene.add(new THREE.AmbientLight(0x889bcc, 0.75));
-const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+scene.add(new THREE.AmbientLight(0xb0c8ee, 1.4));
+const hemi = new THREE.HemisphereLight(0x88bbff, 0x334466, 0.9);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
 sun.position.set(5, 10, 6);
 sun.castShadow = true;
 scene.add(sun);
-const rimL = new THREE.PointLight(0x3377ff, 4.0, 24);
+const fill = new THREE.DirectionalLight(0xaaccff, 0.8);
+fill.position.set(-4, 5, -3);
+scene.add(fill);
+const rimL = new THREE.PointLight(0x5599ff, 5.0, 28);
 rimL.position.set(-6, 3, 7);
 scene.add(rimL);
-const warmL = new THREE.PointLight(0xff9944, 0.55, 14);
+const warmL = new THREE.PointLight(0xffaa55, 0.9, 16);
 warmL.position.set(4, -4, 4);
 scene.add(warmL);
-const backL = new THREE.PointLight(0x224488, 1.2, 18);
+const backL = new THREE.PointLight(0x3366aa, 1.8, 22);
 backL.position.set(0, 2, -8);
 scene.add(backL);
 
 // Grid
-const grid = new THREE.GridHelper(28, 28, 0x1a3d7c, 0x0d1e44);
+const grid = new THREE.GridHelper(28, 28, 0x2a5599, 0x152d55);
 grid.position.y = -5.1;
-grid.material.opacity = 0.4;
+grid.material.opacity = 0.55;
 grid.material.transparent = true;
 scene.add(grid);
 
@@ -282,7 +287,7 @@ scene.add(toolGroup);
 const groups = [];  // parallel to PARTS
 const meshes = [];  // flat raycasting list
 
-function mkmat(color, metalness = 0.78, roughness = 0.24) {
+function mkmat(color, metalness = 0.82, roughness = 0.18) {
   return new THREE.MeshStandardMaterial({ color, metalness, roughness });
 }
 
@@ -306,7 +311,7 @@ function addMesh(geo, color, group, metalness, roughness) {
   addMesh(new THREE.CylinderGeometry(0.27, 0.34, 0.74, 24), c, g).position.y = 3.77;
   addMesh(new THREE.CylinderGeometry(0.15, 0.27, 0.38, 16), c, g).position.y = 4.31;
   // latch groove ring
-  const lr = addMesh(new THREE.TorusGeometry(0.305, 0.055, 8, 32), 0x607090, g, 0.9, 0.3);
+  const lr = addMesh(new THREE.TorusGeometry(0.305, 0.055, 8, 32), 0x8899bb, g, 0.9, 0.3);
   lr.position.y = 3.28; lr.rotation.x = Math.PI / 2;
   // label anchor
   const la = new THREE.Object3D(); la.position.set(0.72, PARTS[0].anchorY, 0); g.add(la); g.userData.la = la;
@@ -323,7 +328,7 @@ function addMesh(geo, color, group, metalness, roughness) {
   const body = addMesh(new THREE.CylinderGeometry(0.44, 0.44, 5.28, 32), c, g, 0.86, 0.17);
   body.position.y = 0.5;
   // subtle lengthwise highlight seam
-  const seam = addMesh(new THREE.CylinderGeometry(0.443, 0.443, 5.28, 4), 0x2266cc, g, 0.9, 0.12);
+  const seam = addMesh(new THREE.CylinderGeometry(0.443, 0.443, 5.28, 4), 0x3388ee, g, 0.9, 0.12);
   seam.position.y = 0.5;
   const la = new THREE.Object3D(); la.position.set(0.72, PARTS[1].anchorY, 0); g.add(la); g.userData.la = la;
 
@@ -371,7 +376,7 @@ function addMesh(geo, color, group, metalness, roughness) {
   // collet fingers
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
-    const f = addMesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), 0x18284a, g, 0.8, 0.4);
+    const f = addMesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), 0x2a4872, g, 0.8, 0.4);
     f.position.set(Math.cos(a) * 0.19, -3.74, Math.sin(a) * 0.19);
   }
   addMesh(new THREE.CylinderGeometry(0.22, 0.07, 0.42, 16), c, g, 0.7, 0.45).position.y = -4.12;
@@ -419,16 +424,16 @@ function setState(group, state) {
       m.opacity = 1; m.transparent = false;
     } else if (state === 'hov') {
       m.color.setHex(p.hov); m.emissive.setHex(p.hov);
-      m.emissiveIntensity = 0.3;
+      m.emissiveIntensity = 0.45;
       m.opacity = 1; m.transparent = false;
     } else if (state === 'sel') {
       m.color.setHex(p.sel); m.emissive.setHex(p.sel);
-      m.emissiveIntensity = 0.5;
+      m.emissiveIntensity = 0.65;
       m.opacity = 1; m.transparent = false;
     } else if (state === 'dim') {
       m.color.setHex(child.userData.defCol);
       m.emissive.setHex(0x000000); m.emissiveIntensity = 0;
-      m.opacity = 0.22; m.transparent = true;
+      m.opacity = 0.35; m.transparent = true;
     }
   });
 }
